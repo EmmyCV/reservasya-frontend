@@ -1,0 +1,5 @@
+{
+  "name": "GlamourReserve - Beauty Salon Booking",
+  "description": "A comprehensive frontend application for a beauty salon booking platform, allowing clients to book services and administrators to manage the salon's operations. Built with React, TypeScript, and TailwindCSS, and connected to a Supabase backend.",
+  "requestFramePermissions": []
+}
