@@ -14,12 +14,12 @@ const AllReservations: React.FC = () => {
         setLoading(true);
         try {
             let query = supabase
-                .from('Reserva')
+                .from('reserva')
                 .select(`
                     *,
-                    Usuario:Usuario!Reserva_idUsuarioCliente_fkey (*),
-                    Servicio (*),
-                    Empleado:Usuario!Reserva_idEmpleado_fkey (*)
+                    Usuario:usuario!Reserva_idUsuarioCliente_fkey (*),
+                    Servicio:servicio (*),
+                    Empleado:usuario!Reserva_idEmpleado_fkey (*)
                 `);
 
             if (filterDate) {
@@ -43,7 +43,7 @@ const AllReservations: React.FC = () => {
 
     const handleStatusChange = async (idReserva: number, newStatus: 'activa' | 'cancelada' | 'realizada') => {
         try {
-            const { error } = await supabase.from('Reserva').update({ estado: newStatus }).eq('idReserva', idReserva);
+            const { error } = await supabase.from('reserva').update({ estado: newStatus }).eq('idReserva', idReserva);
             if (error) throw error;
             fetchReservations();
         } catch (err) {
@@ -56,21 +56,21 @@ const AllReservations: React.FC = () => {
 
     return (
         <div className="p-4 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-bold mb-4">All Reservations</h2>
+            <h2 className="text-xl font-bold mb-4">Todas las Reservas</h2>
             <div className="mb-4">
-                <label htmlFor="filterDate" className="mr-2">Filter by date:</label>
+                <label htmlFor="filterDate" className="mr-2">Filtrar por fecha:</label>
                 <input type="date" id="filterDate" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="p-2 border rounded"/>
             </div>
             <div className="overflow-x-auto">
                 <table className="min-w-full bg-white text-sm">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="py-2 px-3 text-left">Date & Time</th>
-                            <th className="py-2 px-3 text-left">Client</th>
-                            <th className="py-2 px-3 text-left">Service</th>
-                            <th className="py-2 px-3 text-left">Employee</th>
-                            <th className="py-2 px-3 text-left">Status</th>
-                            <th className="py-2 px-3 text-left">Actions</th>
+                            <th className="py-2 px-3 text-left">Fecha y hora</th>
+                            <th className="py-2 px-3 text-left">Cliente</th>
+                            <th className="py-2 px-3 text-left">Servicio</th>
+                            <th className="py-2 px-3 text-left">Empleado</th>
+                            <th className="py-2 px-3 text-left">Estado</th>
+                            <th className="py-2 px-3 text-left">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -87,16 +87,16 @@ const AllReservations: React.FC = () => {
                                       onChange={(e) => handleStatusChange(res.idReserva, e.target.value as any)}
                                       className="p-1 border rounded text-xs"
                                     >
-                                        <option value="activa">Active</option>
-                                        <option value="realizada">Completed</option>
-                                        <option value="cancelada">Cancelled</option>
+                                        <option value="activa">Activa</option>
+                                        <option value="realizada">Realizada</option>
+                                        <option value="cancelada">Cancelada</option>
                                     </select>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-                 {reservations.length === 0 && <p className="text-center p-4 text-gray-500">No reservations found for this date.</p>}
+                 {reservations.length === 0 && <p className="text-center p-4 text-gray-500">No se encontraron reservas para esta fecha.</p>}
             </div>
         </div>
     );

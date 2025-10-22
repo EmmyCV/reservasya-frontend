@@ -29,23 +29,25 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
       setError(null);
       try {
         const { data, error } = await supabase
-          .from('EmpleadoServicioHorario')
-          .select('idEmpleado, Empleado:Usuario(idUsuario, nombre)')
+          .from('empleadoserviciohorario')
+          .select('idEmpleado, Empleado:usuario(idUsuario, nombre)')
           .eq('idServicio', service.idServicio);
         if (error) throw error;
         
         // Deduplicate employees
         const uniqueEmployees: Empleado[] = [];
         const seenIds = new Set();
-        data.forEach(item => {
-            if (item.Empleado && !seenIds.has(item.Empleado.idUsuario)) {
-                uniqueEmployees.push({
-                    idUsuario: item.Empleado.idUsuario,
-                    nombre: item.Empleado.nombre
-                });
-                seenIds.add(item.Empleado.idUsuario);
-            }
+    data.forEach(item => {
+      // Empleado can be returned as an object or as an array depending on relation
+      const empleado = Array.isArray(item.Empleado) ? item.Empleado[0] : item.Empleado;
+      if (empleado && !seenIds.has(empleado.idUsuario)) {
+        uniqueEmployees.push({
+          idUsuario: empleado.idUsuario,
+          nombre: empleado.nombre
         });
+        seenIds.add(empleado.idUsuario);
+      }
+    });
 
         setEmployees(uniqueEmployees);
       } catch (err: any) {
@@ -66,12 +68,12 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     try {
         const dayOfWeek = new Date(selectedDate).toLocaleString('en-US', { weekday: 'long' });
         
-        const { data: horarios, error: horarioError } = await supabase
-            .from('Horario')
+    const { data: horarios, error: horarioError } = await supabase
+      .from('horario')
             .select('horaInicio, horaFin')
             .in('idHorario', (
-                await supabase
-                .from('EmpleadoServicioHorario')
+        await supabase
+        .from('empleadoserviciohorario')
                 .select('idHorario')
                 .eq('idEmpleado', selectedEmployee.idUsuario)
                 .eq('idServicio', service.idServicio)
@@ -82,18 +84,20 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
             throw new Error('No available schedule for this day.');
         }
 
-        const { data: reservations, error: reservationError } = await supabase
-            .from('Reserva')
-            .select('hora, Servicio(duracion)')
+    const { data: reservations, error: reservationError } = await supabase
+      .from('reserva')
+      .select('hora, Servicio:servicio(duracion)')
             .eq('idEmpleado', selectedEmployee.idUsuario)
             .eq('fecha', selectedDate)
             .in('estado', ['activa']);
 
         if (reservationError) throw reservationError;
         
-        const bookedSlots = reservations.map(r => {
-            const startTime = r.hora;
-            const duration = r.Servicio.duracion;
+    const bookedSlots = reservations.map(r => {
+      const startTime = r.hora;
+      // Servicio may come as object or array depending on the select; normalize
+      const servicio = Array.isArray(r.Servicio) ? r.Servicio[0] : r.Servicio;
+      const duration = servicio?.duracion ?? 0;
             const [hours, minutes] = startTime.split(':').map(Number);
             const start = new Date();
             start.setHours(hours, minutes, 0, 0);
@@ -141,7 +145,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     setLoading(true);
     setError(null);
     try {
-      const { error } = await supabase.from('Reserva').insert({
+      const { error } = await supabase.from('reserva').insert({
         idUsuarioCliente: profile.idUsuario,
         idEmpleado: selectedEmployee.idUsuario,
         idServicio: service.idServicio,

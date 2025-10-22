@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { useAuth } from '../contexts/AuthContext';
 
-const LoginPage: React.FC = () => {
+const AdminLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { profile } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +18,7 @@ const LoginPage: React.FC = () => {
       const emailClean = (email ?? '').toString().trim().toLowerCase();
       const passwordRaw = (password ?? '').toString();
 
-      // Primero verificamos si el correo existe en la tabla `usuario` para dar mensajes más claros
+      // Verificamos si el correo está registrado para dar mensajes más claros
       try {
         const { data: found, error: foundError } = await supabase
           .from('usuario')
@@ -33,7 +31,7 @@ const LoginPage: React.FC = () => {
           return;
         }
         if (!found || (Array.isArray(found) && found.length === 0)) {
-          setError('No existe una cuenta registrada con ese correo. ¿Te registraste?');
+          setError('No existe una cuenta con ese correo.');
           return;
         }
       } catch (err) {
@@ -44,52 +42,38 @@ const LoginPage: React.FC = () => {
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailClean,
-        password: passwordRaw,
+        password: passwordRaw
       });
 
-      // Logs completos para depuración; elimina en producción
       console.log('Auth response data:', data);
       console.log('Auth response error:', error);
 
       if (error) {
-        // Si llegamos aquí es porque el correo existe (lo verificamos arriba),
-        // así que mostramos un mensaje más accionable para la contraseña o verificación.
-        setError('Contraseña inválida o cuenta no verificada. ¿Olvidaste tu contraseña?');
+        setError('Contraseña inválida o cuenta no verificada.');
         return;
       }
       if (!data || !data.user) {
-        setError('Inicio de sesión fallido: credenciales inválidas.');
+        setError('Usuario o contraseña inválidos.');
         return;
       }
       const { user } = data;
-      // Buscar el rol en la tabla Usuario
       const { data: perfil, error: perfilError } = await supabase
         .from('usuario')
         .select('rol')
         .eq('auth_id', user.id)
         .single();
-      console.log('Perfil response:', perfil, perfilError); // <-- Depuración
-      if (perfilError) {
-        setError('Error consultando el perfil: ' + perfilError.message);
-        return;
-      }
-      if (!perfil) {
-        setError('No se encontró perfil para este usuario.');
-        return;
-      }
+      if (perfilError) throw perfilError;
+      if (!perfil) throw new Error('No se encontró perfil para este usuario.');
       if (perfil.rol === 'Administrador' || perfil.rol === 'Admin') {
+        // Guarda el access token como en tu ejemplo
         if (data?.session?.access_token) {
           localStorage.setItem('admin_token', data.session.access_token);
         }
         navigate('/admin');
-      } else if (perfil.rol === 'Cliente') {
-        // Limpia token admin si existiera
-        localStorage.removeItem('admin_token');
-        navigate('/dashboard');
-      } else if (perfil.rol === 'Empleado') {
-        setError('No tienes panel asignado.');
       } else {
-        setError('No tienes permisos para acceder.');
+        // Limpia token por seguridad
+        localStorage.removeItem('admin_token');
+        setError('No tienes permisos de administrador.');
       }
     } catch (error: any) {
       setError(error.message || 'Error al iniciar sesión.');
@@ -97,28 +81,11 @@ const LoginPage: React.FC = () => {
       setLoading(false);
     }
   };
-  
-  // Effect to redirect user after profile is loaded
-  React.useEffect(() => {
-    if (profile) {
-      switch (profile.rol) {
-        case 'Admin':
-        case 'Recepcionista':
-          navigate('/admin');
-          break;
-        case 'Cliente':
-          navigate('/dashboard');
-          break;
-        default:
-          navigate('/');
-      }
-    }
-  }, [profile, navigate]);
 
   return (
     <div className="flex justify-center items-center py-12">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-  <h2 className="text-2xl font-bold text-center" style={{ color: '#9F6A6A' }}>Iniciar sesión en tu cuenta</h2>
+  <h2 className="text-2xl font-bold text-center" style={{ color: '#9F6A6A' }}>Iniciar sesión como administrador</h2>
         <form onSubmit={handleLogin} className="space-y-6">
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
           <div>
@@ -168,15 +135,9 @@ const LoginPage: React.FC = () => {
             </button>
           </div>
         </form>
-        <p className="text-center text-sm text-gray-600">
-          ¿No tienes una cuenta?{' '}
-          <Link to="/register" style={{ color: '#9F6A6A' }} className="font-medium hover:underline">
-            Regístrate
-          </Link>
-        </p>
       </div>
     </div>
   );
 };
 
-export default LoginPage;
+export default AdminLoginPage;

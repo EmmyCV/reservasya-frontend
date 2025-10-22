@@ -1,26 +1,32 @@
-
 import React, { useState } from 'react';
 import ServiceManager from '../components/admin/ServiceManager';
 import AllReservations from '../components/admin/AllReservations';
-// Placeholders for other admin components
-// import ScheduleManager from '../components/admin/ScheduleManager';
-// import AssignmentManager from '../components/admin/AssignmentManager';
+import ClientsManager from '../components/admin/ClientsManager';
+import StylistsManager from '../components/admin/StylistsManager';
+import SystemSettings from '../components/admin/SystemSettings';
+import AgendaManager from '../components/admin/AgendaManager';
+import PersonnelManager from '../components/admin/PersonnelManager';
+import ReportsManager from '../components/admin/ReportsManager';
 
-type AdminTab = 'reservations' | 'services' | 'schedules' | 'assignments';
+type AdminTab = 'agenda' | 'clients' | 'services' | 'personnel' | 'reports' | 'settings';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('reservations');
+  const [activeTab, setActiveTab] = useState<AdminTab>('agenda');
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'reservations':
-        return <AllReservations />;
+      case 'agenda':
+        return <AgendaManager />;
+      case 'clients':
+        return <ClientsManager />;
       case 'services':
         return <ServiceManager />;
-      case 'schedules':
-        return <div className="p-4 bg-white rounded-lg shadow"><h2 className="text-xl font-bold">Schedule Management</h2><p className="mt-2 text-gray-600">This feature is under construction.</p></div>;
-      case 'assignments':
-        return <div className="p-4 bg-white rounded-lg shadow"><h2 className="text-xl font-bold">Staff Assignments</h2><p className="mt-2 text-gray-600">This feature is under construction.</p></div>;
+      case 'personnel':
+        return <PersonnelManager />;
+      case 'reports':
+        return <ReportsManager />;
+      case 'settings':
+        return <SystemSettings />;
       default:
         return null;
     }
@@ -37,12 +43,16 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6 text-text-primary">Admin Dashboard</h1>
-      <div className="mb-6 flex space-x-2 border-b">
-        <TabButton tab="reservations" label="All Reservations" />
-        <TabButton tab="services" label="Manage Services" />
-        <TabButton tab="schedules" label="Manage Schedules" />
-        <TabButton tab="assignments" label="Manage Assignments" />
+      <h1 className="text-3xl font-bold mb-6" style={{ color: '#9F6A6A' }}>Panel de Administración</h1>
+      <div className="mb-6 -mx-4 px-4 border-b overflow-x-auto sm:overflow-visible">
+        <div className="flex space-x-2 w-max sm:w-full">
+          <TabButton tab="agenda" label="Agenda y Planificación" />
+          <TabButton tab="clients" label="Clientes y CRM" />
+          <TabButton tab="services" label="Catálogo de Servicios" />
+          <TabButton tab="personnel" label="Personal y RRHH" />
+          <TabButton tab="reports" label="Reportes y Análisis" />
+          <TabButton tab="settings" label="Configuración del Sistema" />
+        </div>
       </div>
       <div>
         {renderTabContent()}

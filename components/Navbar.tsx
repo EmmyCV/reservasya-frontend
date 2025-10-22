@@ -1,7 +1,7 @@
-
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import logoRosa from '../src/assets/logorosa.png';
 
 const Navbar: React.FC = () => {
   const { session, profile, signOut } = useAuth();
@@ -13,12 +13,12 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="bg-white shadow-md">
+    <nav className="bg-white shadow-md" style={{ backgroundColor: '#FFF5F8' }}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="text-2xl font-bold text-primary">
-              GlamourReserve
+            <Link to="/" className="text-2xl font-bold" style={{ color: '#9F6A6A' }}>
+              <img src={logoRosa} alt="Logo" style={{ height: '80px' }} />
             </Link>
           </div>
           <div className="flex items-center space-x-4">
@@ -26,28 +26,28 @@ const Navbar: React.FC = () => {
               <>
                 {profile.rol === 'Cliente' && (
                   <>
-                    <Link to="/dashboard" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Dashboard</Link>
-                    <Link to="/my-reservations" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">My Reservations</Link>
+                    <Link to="/dashboard" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Tablero</Link>
+                    <Link to="/my-reservations" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Mis Reservas</Link>
                   </>
                 )}
                 {(profile.rol === 'Admin' || profile.rol === 'Recepcionista') && (
-                  <Link to="/admin" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Admin Panel</Link>
+                  <Link to="/admin" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Panel de Administración</Link>
                 )}
-                <span className="text-gray-700 text-sm">Hi, {profile.nombre}!</span>
+                <span className="text-gray-700 text-sm">¡Hola, {profile.nombre}!</span>
                 <button
                   onClick={handleSignOut}
                   className="bg-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-focus transition-colors"
                 >
-                  Logout
+                  Cerrar sesión
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">
-                  Login
+                <Link to="/login" className="text-gray-600 px-3 py-2 rounded-md text-sm font-medium" style={{ color: '#9F6A6A' }}>
+                  Iniciar sesión
                 </Link>
-                <Link to="/register" className="bg-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-focus transition-colors">
-                  Sign Up
+                <Link to="/register" style={{ backgroundColor: '#9F6A6A' }} className="text-white px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-colors">
+                  Registrarse
                 </Link>
               </>
             )}

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
@@ -11,7 +10,9 @@ import RegisterPage from './pages/RegisterPage';
 import ClientDashboard from './pages/ClientDashboard';
 import MyReservationsPage from './pages/MyReservationsPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminPreview from './pages/AdminPreview';
 import NotFoundPage from './pages/NotFoundPage';
+import AdminLoginPage from './pages/AdminLoginPage';
 
 function App() {
   return (
@@ -43,10 +44,13 @@ function App() {
             />
 
             {/* Admin Routes */}
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            {/* Public preview route for admin panel (no auth). Render AdminDashboard directly for preview. */}
+            <Route path="/admin/preview" element={<AdminDashboard />} />
             <Route 
               path="/admin" 
               element={
-                <ProtectedRoute allowedRoles={['Admin', 'Recepcionista']}>
+                <ProtectedRoute allowedRoles={["Administrador"]}>
                   <AdminDashboard />
                 </ProtectedRoute>
               } 

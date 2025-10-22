@@ -14,11 +14,11 @@ const ServiceManager: React.FC = () => {
     const fetchServices = useCallback(async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase.from('Servicio').select('*').order('nombre');
+            const { data, error } = await supabase.from('servicio').select('*').order('nombre');
             if (error) throw error;
             setServices(data || []);
         } catch (err: any) {
-            setError('Failed to fetch services.');
+            setError('Error al obtener los servicios.');
         } finally {
             setLoading(false);
         }
@@ -51,28 +51,28 @@ const ServiceManager: React.FC = () => {
             let response;
             if (currentService.idServicio) {
                 // Update
-                response = await supabase.from('Servicio').update(serviceData).eq('idServicio', currentService.idServicio);
+                response = await supabase.from('servicio').update(serviceData).eq('idServicio', currentService.idServicio);
             } else {
                 // Insert
-                response = await supabase.from('Servicio').insert(serviceData);
+                response = await supabase.from('servicio').insert(serviceData);
             }
             if (response.error) throw response.error;
 
             handleCloseModal();
             fetchServices();
         } catch (err: any) {
-            alert('Failed to save service: ' + err.message);
+            alert('Error al guardar el servicio: ' + err.message);
         }
     };
 
     const handleDelete = async (idServicio: number) => {
-        if (window.confirm('Are you sure you want to delete this service? This action cannot be undone.')) {
+    if (window.confirm('¿Estás seguro de que deseas eliminar este servicio? Esta acción no se puede deshacer.')) {
             try {
-                const { error } = await supabase.from('Servicio').delete().eq('idServicio', idServicio);
+                const { error } = await supabase.from('servicio').delete().eq('idServicio', idServicio);
                 if (error) throw error;
                 fetchServices();
             } catch (err: any) {
-                alert('Failed to delete service: ' + err.message);
+                alert('Error al eliminar el servicio: ' + err.message);
             }
         }
     };
@@ -83,19 +83,19 @@ const ServiceManager: React.FC = () => {
     return (
         <div className="p-4 bg-white rounded-lg shadow">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Manage Services</h2>
+                <h2 className="text-xl font-bold">Gestionar Servicios</h2>
                 <button onClick={() => handleOpenModal()} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-focus">
-                    Add New Service
+                    Añadir Servicio
                 </button>
             </div>
             <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="py-3 px-4 text-left">Name</th>
-                            <th className="py-3 px-4 text-left">Duration (min)</th>
-                            <th className="py-3 px-4 text-left">Price ($)</th>
-                            <th className="py-3 px-4 text-left">Actions</th>
+                            <th className="py-3 px-4 text-left">Nombre</th>
+                            <th className="py-3 px-4 text-left">Duración (min)</th>
+                            <th className="py-3 px-4 text-left">Precio ($)</th>
+                            <th className="py-3 px-4 text-left">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -105,8 +105,8 @@ const ServiceManager: React.FC = () => {
                                 <td className="py-3 px-4">{s.duracion}</td>
                                 <td className="py-3 px-4">{s.precio.toFixed(2)}</td>
                                 <td className="py-3 px-4 flex gap-2">
-                                    <button onClick={() => handleOpenModal(s)} className="text-blue-600 hover:underline text-sm">Edit</button>
-                                    <button onClick={() => handleDelete(s.idServicio)} className="text-red-600 hover:underline text-sm">Delete</button>
+                                    <button onClick={() => handleOpenModal(s)} className="text-blue-600 hover:underline text-sm">Editar</button>
+                                    <button onClick={() => handleDelete(s.idServicio)} className="text-red-600 hover:underline text-sm">Eliminar</button>
                                 </td>
                             </tr>
                         ))}
@@ -117,15 +117,15 @@ const ServiceManager: React.FC = () => {
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
                     <div className="bg-white p-6 rounded-lg w-full max-w-md">
-                        <h3 className="text-lg font-bold mb-4">{currentService.idServicio ? 'Edit Service' : 'Add New Service'}</h3>
+                        <h3 className="text-lg font-bold mb-4">{currentService.idServicio ? 'Editar Servicio' : 'Añadir Servicio'}</h3>
                         <form onSubmit={handleSave} className="space-y-4">
-                            <input type="text" placeholder="Name" required value={currentService.nombre || ''} onChange={e => setCurrentService({...currentService, nombre: e.target.value})} className="w-full p-2 border rounded"/>
-                            <textarea placeholder="Description" value={currentService.descripcion || ''} onChange={e => setCurrentService({...currentService, descripcion: e.target.value})} className="w-full p-2 border rounded"></textarea>
-                            <input type="number" placeholder="Duration (minutes)" required value={currentService.duracion || ''} onChange={e => setCurrentService({...currentService, duracion: parseInt(e.target.value)})} className="w-full p-2 border rounded"/>
-                            <input type="number" step="0.01" placeholder="Price" required value={currentService.precio || ''} onChange={e => setCurrentService({...currentService, precio: parseFloat(e.target.value)})} className="w-full p-2 border rounded"/>
+                            <input type="text" placeholder="Nombre" required value={currentService.nombre || ''} onChange={e => setCurrentService({...currentService, nombre: e.target.value})} className="w-full p-2 border rounded"/>
+                            <textarea placeholder="Descripción" value={currentService.descripcion || ''} onChange={e => setCurrentService({...currentService, descripcion: e.target.value})} className="w-full p-2 border rounded"></textarea>
+                            <input type="number" placeholder="Duración (minutos)" required value={currentService.duracion || ''} onChange={e => setCurrentService({...currentService, duracion: parseInt(e.target.value)})} className="w-full p-2 border rounded"/>
+                            <input type="number" step="0.01" placeholder="Precio" required value={currentService.precio || ''} onChange={e => setCurrentService({...currentService, precio: parseFloat(e.target.value)})} className="w-full p-2 border rounded"/>
                             <div className="flex justify-end gap-2">
-                                <button type="button" onClick={handleCloseModal} className="px-4 py-2 bg-gray-200 rounded">Cancel</button>
-                                <button type="submit" className="px-4 py-2 bg-primary text-white rounded">Save</button>
+                                <button type="button" onClick={handleCloseModal} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+                                <button type="submit" className="px-4 py-2 bg-primary text-white rounded">Guardar</button>
                             </div>
                         </form>
                     </div>

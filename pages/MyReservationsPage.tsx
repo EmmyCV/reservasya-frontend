@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Reserva } from '../types';
@@ -16,11 +15,11 @@ const MyReservationsPage: React.FC = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('Reserva')
+        .from('reserva')
         .select(`
           *,
-          Servicio (*),
-          Empleado:Usuario!Reserva_idEmpleado_fkey (*)
+          Servicio:servicio (*),
+          Empleado:usuario!Reserva_idEmpleado_fkey (*)
         `)
         .eq('idUsuarioCliente', profile.idUsuario)
         .order('fecha', { ascending: false })
@@ -29,7 +28,7 @@ const MyReservationsPage: React.FC = () => {
       if (error) throw error;
       setReservations(data as any[] || []);
     } catch (err: any) {
-      setError('Failed to fetch reservations.');
+  setError('Error al obtener las reservas.');
     } finally {
       setLoading(false);
     }
@@ -40,10 +39,10 @@ const MyReservationsPage: React.FC = () => {
   }, [fetchReservations]);
 
   const handleCancel = async (idReserva: number) => {
-    if (window.confirm('Are you sure you want to cancel this reservation?')) {
+  if (window.confirm('¿Estás seguro de que deseas cancelar esta reserva?')) {
       try {
         const { error } = await supabase
-          .from('Reserva')
+          .from('reserva')
           .update({ estado: 'cancelada' })
           .eq('idReserva', idReserva);
         
@@ -51,7 +50,7 @@ const MyReservationsPage: React.FC = () => {
         // Refresh the list
         fetchReservations();
       } catch (err) {
-        alert('Failed to cancel reservation.');
+        alert('Error al cancelar la reserva.');
       }
     }
   };
@@ -70,17 +69,17 @@ const MyReservationsPage: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6 text-text-primary">My Reservations</h1>
+      <h1 className="text-3xl font-bold mb-6" style={{ color: '#9F6A6A' }}>Mis Reservas</h1>
       {reservations.length === 0 ? (
-        <p className="text-center text-text-secondary">You have no reservations yet.</p>
+        <p className="text-center" style={{ color: '#6B7280' }}>No tienes reservas todavía.</p>
       ) : (
         <div className="space-y-4">
           {reservations.map(res => (
             <div key={res.idReserva} className="bg-white p-4 rounded-lg shadow-md flex flex-col md:flex-row justify-between items-start md:items-center">
               <div>
-                <h2 className="text-lg font-semibold text-primary">{res.Servicio.nombre}</h2>
-                <p className="text-sm text-text-secondary">with {res.Empleado.nombre}</p>
-                <p className="text-sm text-text-secondary">{new Date(res.fecha + 'T' + res.hora).toLocaleString()}</p>
+                <h2 className="text-lg font-semibold" style={{ color: '#9F6A6A' }}>{res.Servicio.nombre}</h2>
+                <p className="text-sm" style={{ color: '#6B7280' }}>con {res.Empleado.nombre}</p>
+                <p className="text-sm" style={{ color: '#6B7280' }}>{new Date(res.fecha + 'T' + res.hora).toLocaleString()}</p>
               </div>
               <div className="flex items-center gap-4 mt-4 md:mt-0">
                 <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusChip(res.estado)}`}>
