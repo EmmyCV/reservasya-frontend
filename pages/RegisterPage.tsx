@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../services/supabase';
+import { supabase } from '../services/supabase'; // Ahora esta ruta es válida
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,78 +19,75 @@ const RegisterPage: React.FC = () => {
     setError(null);
     setSuccess(null);
 
-    // CRÍTICO: Asegurar que el campo NOT NULL 'nombre' no sea null/undefined.
+    // Validaciones básicas del frontend
+    if (!email || !password || !nombre) {
+        setError('El email, la contraseña y el nombre son obligatorios.');
+        setLoading(false);
+        return;
+    }
+
     const finalNombre = nombre.trim();
-    
+    // Prepara el teléfono: si no hay valor, envía null. El trigger lo manejará.
+    const finalTelefono = telefono ? telefono.trim() : null; 
+
     if (!finalNombre) {
       setError('El nombre no puede estar vacío.');
       setLoading(false);
       return;
     }
 
-    let authUserId: string | null = null; 
-
     try {
-      // Paso 1: Crear Auth User (Cuenta de seguridad)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
+      // *** Flujo CRÍTICO: Una sola llamada para Autenticación y Perfil ***
+      // 1. supabase.auth.signUp crea la cuenta en auth.users.
+      // 2. El objeto 'options.data' es leído por el trigger handle_new_user().
+      // 3. El trigger inserta el perfil en la tabla 'usuario' automáticamente.
+      const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            nombre: finalNombre,   // <-- Enviamos el nombre real
+            telefono: finalTelefono // <-- Enviamos el teléfono real o null
+          }
+        }
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Registration failed, please try again.');
-
-      authUserId = authData.user.id; 
-
-      // Paso 2: Crear Perfil DB (Usando el ID de Auth como PK en la tabla 'usuario')
-      const { error: profileError } = await supabase.from('usuario').insert({
-        // OBLIGATORIO Y PK
-        id: authUserId, 
-        
-        // OBLIGATORIO (NOT NULL)
-        nombre: finalNombre, 
-        
-        // OPCIONAL (Permite NULL)
-        telefono: telefono || null, 
-        
-        // OBLIGATORIO (NOT NULL) con DEFAULT 'Cliente' en DB. 
-        // Lo enviamos para asegurar la capitalización correcta y el CHECK.
-        rol: 'Cliente', 
-
-        // OMITIDOS:
-        // usuarionuevo: Omitido porque tiene DEFAULT 'true'.
-        // fecharegistro: Omitido porque tiene DEFAULT CURRENT_DATE.
-        // cargo: Omitido (Permite NULL, lo enviaremos como NULL o vacío si la variable no existe).
-        // created_at: Omitido porque tiene DEFAULT now().
-      });
-
-      if (profileError) {
-        console.error('Database Insertion Error (Paso 2):', profileError);
-        throw profileError; 
+      if (error) {
+        // Maneja errores de autenticación (ej: email ya existe, contraseña débil)
+        console.error('Error de Autenticación:', error);
+        throw error;
       }
+      
+      // La variable data.user será null si la verificación por correo electrónico está activa.
+      const successMessage = data.user 
+        ? '¡Registro exitoso! Ya puedes iniciar sesión.'
+        : '¡Registro exitoso! Por favor, revisa tu correo para verificar tu cuenta.';
 
-      setSuccess('¡Registro exitoso! Por favor, revisa tu correo para verificar tu cuenta.');
+      setSuccess(successMessage);
       setTimeout(() => navigate('/login'), 5000);
 
     } catch (error: any) {
+      // Manejo de errores unificado, incluyendo errores del trigger si son devueltos
       let errorMessage = 'Fallo el registro. Inténtalo de nuevo.';
-      
+
       if (error && error.message) {
-        // Muestra el mensaje de error de la base de datos (ej: "violación de RLS")
-        errorMessage = error.message; 
+        errorMessage = error.message;
+        // Si el trigger falla (ej. si la validación del teléfono falla en la DB),
+        // este error suele aparecer aquí.
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
-      
-      setError(errorMessage);
 
-      if (authUserId) {
-        console.warn("User profile creation failed. Auth user ID:", authUserId);
-      }
+      setError(errorMessage);
+      console.error("Fallo de registro/trigger:", errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  // ----------------------------------------------------------------------
+  // Renderizado del componente (sin cambios)
+  // ----------------------------------------------------------------------
 
   return (
     <div className="flex justify-center items-center py-12">
@@ -102,22 +99,62 @@ const RegisterPage: React.FC = () => {
 
           <div>
             <label htmlFor="nombre" className="text-sm font-medium text-gray-700">Nombre completo</label>
-            <input id="nombre" type="text" required value={nombre} onChange={(e) => setNombre(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" style={{ borderColor: '#9F6A6A' }} placeholder="Tu nombre" />
+            <input 
+              id="nombre" 
+              type="text" 
+              required 
+              value={nombre} 
+              onChange={(e) => setNombre(e.target.value)} 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" 
+              style={{ borderColor: '#9F6A6A' }} 
+              placeholder="Tu nombre" 
+            />
           </div>
           <div>
             <label htmlFor="email" className="text-sm font-medium text-gray-700">Correo electrónico</label>
-            <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" style={{ borderColor: '#9F6A6A' }} placeholder="tucorreo@ejemplo.com" />
+            <input 
+              id="email" 
+              type="email" 
+              required 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" 
+              style={{ borderColor: '#9F6A6A' }} 
+              placeholder="tucorreo@ejemplo.com" 
+            />
           </div>
           <div>
             <label htmlFor="telefono" className="text-sm font-medium text-gray-700">Teléfono</label>
-            <input id="telefono" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" style={{ borderColor: '#9F6A6A' }} placeholder="Tu teléfono (Opcional)" />
+            <input 
+              id="telefono" 
+              type="tel" 
+              value={telefono} 
+              onChange={(e) => setTelefono(e.target.value)} 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" 
+              style={{ borderColor: '#9F6A6A' }} 
+              placeholder="Tu teléfono (Opcional)" 
+            />
           </div>
           <div>
             <label htmlFor="password" className="text-sm font-medium text-gray-700">Contraseña</label>
-            <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" style={{ borderColor: '#9F6A6A' }} placeholder="••••••••" />
+            <input 
+              id="password" 
+              type="password" 
+              required 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" 
+              style={{ borderColor: '#9F6A6A' }} 
+              placeholder="••••••••" 
+            />
           </div>
           <div>
-            <button type="submit" disabled={loading} style={{ backgroundColor: '#9F6A6A' }} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50">
+            <button 
+              type="submit" 
+              disabled={loading} 
+              style={{ backgroundColor: '#9F6A6A' }} 
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50"
+            >
               {loading ? 'Registrando...' : 'Registrarse'}
             </button>
           </div>
