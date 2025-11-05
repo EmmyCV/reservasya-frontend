@@ -18,28 +18,7 @@ const AdminLoginPage: React.FC = () => {
       const emailClean = (email ?? '').toString().trim().toLowerCase();
       const passwordRaw = (password ?? '').toString();
 
-      // Verificamos si el correo está registrado para dar mensajes más claros
-      try {
-        const { data: found, error: foundError } = await supabase
-          .from('usuario')
-          .select('idUsuario, correo, auth_id, rol')
-          .eq('correo', emailClean)
-          .limit(1);
-        if (foundError) {
-          console.warn('Lookup error', foundError);
-          setError('Error verificando el correo. Intenta de nuevo más tarde.');
-          return;
-        }
-        if (!found || (Array.isArray(found) && found.length === 0)) {
-          setError('No existe una cuenta con ese correo.');
-          return;
-        }
-      } catch (err) {
-        console.warn('Lookup exception', err);
-        setError('Error verificando el correo. Intenta de nuevo.');
-        return;
-      }
-
+     
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailClean,
         password: passwordRaw

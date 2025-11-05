@@ -1,177 +1,142 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../services/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../services/supabase'; // Importamos la instancia configurada
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const navigate = useNavigate();
-  const { profile } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
-      const emailClean = (email ?? '').toString().trim().toLowerCase();
-      const passwordRaw = (password ?? '').toString();
-
-      // Primero verificamos si el correo existe en la tabla `usuario` para dar mensajes más claros
-      try {
-        const { data: found, error: foundError } = await supabase
-          .from('usuario')
-          .select('idUsuario, correo, auth_id, rol')
-          .eq('correo', emailClean)
-          .limit(1);
-        if (foundError) {
-          console.warn('Lookup error', foundError);
-          setError('Error verificando el correo. Intenta de nuevo más tarde.');
-          return;
-        }
-        if (!found || (Array.isArray(found) && found.length === 0)) {
-          setError('No existe una cuenta registrada con ese correo. ¿Te registraste?');
-          return;
-        }
-      } catch (err) {
-        console.warn('Lookup exception', err);
-        setError('Error verificando el correo. Intenta de nuevo.');
-        return;
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: emailClean,
-        password: passwordRaw,
+      // ----------------------------------------------------------------------
+      // PASO 1: Autenticar al usuario (verificar email y password)
+      // ----------------------------------------------------------------------
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
       });
 
-      // Logs completos para depuración; elimina en producción
-      console.log('Auth response data:', data);
-      console.log('Auth response error:', error);
+      if (authError) {
+        console.error('Error de autenticación:', authError);
+        // Mensaje de error común de Supabase: "Invalid login credentials"
+        throw new Error('Credenciales inválidas. Verifica tu email y contraseña.');
+      }
 
-      if (error) {
-        // Si llegamos aquí es porque el correo existe (lo verificamos arriba),
-        // así que mostramos un mensaje más accionable para la contraseña o verificación.
-        setError('Contraseña inválida o cuenta no verificada. ¿Olvidaste tu contraseña?');
-        return;
+      if (!authData.user) {
+        throw new Error('No se encontró el usuario después del login.');
       }
-      if (!data || !data.user) {
-        setError('Inicio de sesión fallido: credenciales inválidas.');
-        return;
-      }
-      const { user } = data;
-      // Buscar el rol en la tabla Usuario
-      const { data: perfil, error: perfilError } = await supabase
+
+      // ----------------------------------------------------------------------
+      // PASO 2: Obtener el Rol del perfil del usuario (de la tabla 'usuario')
+      // ----------------------------------------------------------------------
+      // Usamos el ID del usuario autenticado para buscar su perfil
+      const { data: profileData, error: profileError } = await supabase
         .from('usuario')
-        .select('rol')
-        .eq('auth_id', user.id)
-        .single();
-      console.log('Perfil response:', perfil, perfilError); // <-- Depuración
-      if (perfilError) {
-        setError('Error consultando el perfil: ' + perfilError.message);
-        return;
+        .select('rol') // Solo necesitamos saber el rol
+        .eq('id', authData.user.id) // Buscamos el perfil por el ID de autenticación
+        .single(); // Esperamos solo un resultado
+
+      if (profileError) {
+        console.error('Error obteniendo el perfil:', profileError);
+        // Si falla aquí, el usuario está logueado pero no podemos redirigirlo.
+        // Es mejor cerrar la sesión para evitar inconsistencias.
+        await supabase.auth.signOut();
+        throw new Error('No se pudo encontrar el perfil del usuario.');
       }
-      if (!perfil) {
-        setError('No se encontró perfil para este usuario.');
-        return;
+
+      if (!profileData || !profileData.rol) {
+        await supabase.auth.signOut();
+        throw new Error('El perfil del usuario no tiene un rol asignado.');
       }
-      if (perfil.rol === 'Administrador' || perfil.rol === 'Admin') {
-        if (data?.session?.access_token) {
-          localStorage.setItem('admin_token', data.session.access_token);
-        }
-        navigate('/admin');
-      } else if (perfil.rol === 'Cliente') {
-        // Limpia token admin si existiera
-        localStorage.removeItem('admin_token');
-        navigate('/dashboard');
-      } else if (perfil.rol === 'Empleado') {
-        setError('No tienes panel asignado.');
-      } else {
-        setError('No tienes permisos para acceder.');
-      }
-    } catch (error: any) {
-      setError(error.message || 'Error al iniciar sesión.');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Effect to redirect user after profile is loaded
-  React.useEffect(() => {
-    if (profile) {
-      switch (profile.rol) {
-        case 'Admin':
-        case 'Recepcionista':
+
+      // ----------------------------------------------------------------------
+      // PASO 3: Redirección Inteligente basada en el Rol
+      // ----------------------------------------------------------------------
+      const userRole = profileData.rol; // Ej: 'Cliente', 'Empleado', 'Administrador'
+      
+      console.log(`Inicio de sesión exitoso. Usuario: ${authData.user.email}, Rol: ${userRole}`);
+
+      // Reemplaza estas rutas con las rutas reales de tus dashboards
+      switch (userRole) {
+        case 'Administrador':
           navigate('/admin');
+          break;
+        case 'Empleado':
+          navigate('/empleado');
           break;
         case 'Cliente':
           navigate('/dashboard');
           break;
         default:
-          navigate('/');
+          // Si el rol no es reconocido, lo enviamos a una página de "caída"
+          console.warn(`Rol no reconocido: ${userRole}`);
+          navigate('/'); // O una página de error
       }
+
+    } catch (error: any) {
+      // Manejo de errores (ej: credenciales inválidas, perfil no encontrado)
+      setError(error.message || 'Ocurrió un error inesperado.');
+    } finally {
+      setLoading(false);
     }
-  }, [profile, navigate]);
+  };
 
   return (
     <div className="flex justify-center items-center py-12">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-  <h2 className="text-2xl font-bold text-center" style={{ color: '#9F6A6A' }}>Iniciar sesión en tu cuenta</h2>
-        <form onSubmit={handleLogin} className="space-y-6">
+        <h2 className="text-2xl font-bold text-center" style={{ color: '#9F6A6A' }}>Iniciar Sesión</h2>
+        <form onSubmit={handleLogin} className="space-y-4">
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
           <div>
             <label htmlFor="email" className="text-sm font-medium text-gray-700">Correo electrónico</label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm"
-              style={{ borderColor: '#9F6A6A' }}
-              placeholder="tucorreo@ejemplo.com"
+            <input 
+              id="email" 
+              type="email" 
+              required 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" 
+              style={{ borderColor: '#9F6A6A' }} 
+              placeholder="tucorreo@ejemplo.com" 
             />
           </div>
           <div>
             <label htmlFor="password" className="text-sm font-medium text-gray-700">Contraseña</label>
-            <input
-              id="password"
-                type={showPassword ? 'text' : 'password'}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm"
-              style={{ borderColor: '#9F6A6A' }}
-              placeholder="••••••••"
+            <input 
+              id="password" 
+              type="password" 
+              required 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none" 
+              style={{ borderColor: '#9F6A6A' }} 
+              placeholder="••••••••" 
             />
-              <div className="flex items-center mt-2">
-                <input
-                  id="showPassword"
-                  type="checkbox"
-                  checked={showPassword}
-                  onChange={() => setShowPassword(!showPassword)}
-                  className="mr-2"
-                />
-                <label htmlFor="showPassword" className="text-sm text-gray-700">Mostrar contraseña</label>
-              </div>
           </div>
           <div>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ backgroundColor: '#9F6A6A' }}
+            <button 
+              type="submit" 
+              disabled={loading} 
+              style={{ backgroundColor: '#9F6A6A' }} 
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50"
             >
-              {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+              {loading ? 'Ingresando...' : 'Iniciar Sesión'}
             </button>
           </div>
         </form>
         <p className="text-center text-sm text-gray-600">
           ¿No tienes una cuenta?{' '}
           <Link to="/register" style={{ color: '#9F6A6A' }} className="font-medium hover:underline">
-            Regístrate
+            Regístrate aquí
           </Link>
         </p>
       </div>

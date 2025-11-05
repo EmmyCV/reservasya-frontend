@@ -1,94 +1,177 @@
-
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../services/supabase';
-import { Profile } from '../types';
+import { User } from '@supabase/supabase-js';
+import { useNavigate } from 'react-router-dom';
+
+// ----------------------------------------------------------------------
+// 1. Tipos de Datos
+// ----------------------------------------------------------------------
+
+type Role = 'Cliente' | 'Empleado' | 'Administrador' | null;
 
 interface AuthContextType {
-  session: Session | null;
   user: User | null;
-  profile: Profile | null;
-  loading: boolean;
+  role: Role;
+  isLoading: boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<Session | null>(null);
+// ----------------------------------------------------------------------
+// 2. Hook Personalizado
+// ----------------------------------------------------------------------
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth debe ser usado dentro de un AuthProvider');
+  }
+  return context;
+};
+
+// ----------------------------------------------------------------------
+// 3. Proveedor del Contexto
+// ----------------------------------------------------------------------
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<Role>(null);
+  const [isLoading, setIsLoading] = useState(true); // Siempre comienza cargando
 
+  const navigate = useNavigate();
+
+// Función final para obtener el rol, con manejo de errores limpio
+const fetchUserRole = async (userId: string): Promise<Role> => {
+    try {
+        const { data, error } = await supabase
+            .from('usuario') 
+            .select('rol')
+            .eq('id', userId)
+            .single();
+
+        if (error) {
+            // Si hay un error (ej. 42501 permission denied), lo registra y asigna 'Cliente'.
+            console.error('[AuthContext] Error al obtener el rol. Verifique permisos SQL (GRANT SELECT):', error.message);
+            return 'Cliente'; 
+        }
+        
+        // Si data es null, se asigna Cliente
+        const fetchedRole = (data?.rol as Role) || 'Cliente';
+        return fetchedRole;
+
+    } catch (criticalError) {
+        console.error('[AuthContext] Falla crítica:', criticalError);
+        return 'Cliente'; 
+    }
+};
+
+
+
+  // ----------------------------------------------------------------
+  // EFECTO PRINCIPAL (CORREGIDO)
+  // ----------------------------------------------------------------
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user);
-      }
-      setLoading(false);
-    };
+    let isMounted = true; // Flag para evitar actualizar el estado si el componente se desmonta
 
-    getSession();
+    // Función asíncrona para manejar la lógica de la sesión
+    const handleSession = async (session: { user: User | null; event: string; }) => {
+      const { user: currentUser, event } = session;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user);
-        } else {
-          setProfile(null);
+      if (!isMounted) return;
+
+      setUser(currentUser);
+      let newRole: Role = null;
+
+      if (currentUser) {
+        newRole = await fetchUserRole(currentUser.id);
+        setRole(newRole);
+
+        // Lógica de Redirección (solo para SIGNED_IN)
+        if (event === 'SIGNED_IN') {
+          if (newRole === 'Administrador') {
+            navigate('/admin/dashboard', { replace: true });
+          } else if (newRole === 'Empleado') {
+            navigate('/empleado/dashboard', { replace: true });
+          } else {
+            navigate('/', { replace: true });
+          }
+        }
+      } else {
+        // Usuario deslogueado: Limpiar estado y redirigir a login
+        setRole(null);
+        if (event === 'SIGNED_OUT') {
+           navigate('/login', { replace: true });
         }
       }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const fetchProfile = async (user: User) => {
-    try {
-      const { data, error } = await supabase
-        .from('usuario')
-        .select('*')
-        .eq('auth_id', user.id)
-        .single();
       
-      if (error) {
-        console.error('Error fetching profile:', error);
-        setProfile(null);
-      } else {
-        setProfile(data as Profile);
-      }
-    } catch (error) {
-      console.error('Exception fetching profile:', error);
-    }
-  };
+      // La carga finaliza después de procesar el evento,
+      // independientemente de si hay usuario o no.
+      setIsLoading(false); 
+    };
 
+    // 1. Obtener la sesión INICIAL para evitar la espera
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isMounted) {
+        // Procesamos la sesión inicial y APAGAMOS la carga
+        handleSession({ user: session?.user ?? null, event: 'INITIAL_SESSION' });
+      }
+    });
+
+    // 2. Suscripción para eventos FUTUROS (login, logout)
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`[AuthContext] Evento de Auth: ${event}`);
+      if (isMounted) {
+        // Los eventos futuros usan el mismo manejador de sesión, pero ya no tienen
+        // que preocuparse por apagar la carga inicial.
+        handleSession({ user: session?.user ?? null, event: event });
+      }
+    });
+
+    // Limpieza
+    return () => {
+      isMounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  // Función de cierre de sesión
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setProfile(null); // Clear profile on sign out
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
+    // El onAuthStateChange manejará el resto.
   };
 
   const value = {
-    session,
     user,
-    profile,
-    loading,
+    role,
+    isLoading,
     signOut,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+// ----------------------------------------------------------------------
+// 4. Componente de Carga (sin cambios)
+// ----------------------------------------------------------------------
+
+export const AuthLoader: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const { isLoading } = useAuth();
+   
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-screen text-xl font-semibold" style={{ color: '#9F6A6A' }}>
+                Cargando autenticación...
+            </div>
+        );
+    }
+
+    return <>{children}</>;
+}

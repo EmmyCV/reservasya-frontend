@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Servicio } from '../types';
 import Spinner from '../components/Spinner';
@@ -10,6 +11,8 @@ const ClientDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<Servicio | null>(null);
+  const location = useLocation();
+  const [flash, setFlash] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -27,6 +30,20 @@ const ClientDashboard: React.FC = () => {
     fetchServices();
   }, []);
 
+  useEffect(() => {
+    console.log('[ClientDashboard] mounted');
+  }, []);
+
+  // Mostrar mensaje si venimos con state desde el login/registro
+  useEffect(() => {
+    const state: any = (location && (location as any).state) || {};
+    if (state && state.message) {
+      setFlash(state.message as string);
+      const t = setTimeout(() => setFlash(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [location]);
+
   if (loading) {
     return (
       <div className="flex justify-center mt-16">
@@ -35,13 +52,23 @@ const ClientDashboard: React.FC = () => {
     );
   }
 
+  // Mostrar banner temporal si hay flash
+  const FlashBanner = () => (
+    flash ? (
+      <div className="max-w-4xl mx-auto my-4 p-3 rounded-md bg-green-100 text-green-800 text-center">
+        {flash}
+      </div>
+    ) : null
+  );
+
   if (error) {
     return <p className="text-center text-red-500">{error}</p>;
   }
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6 text-text-primary">Our Services</h1>
+      <FlashBanner />
+      <h1 className="text-3xl font-bold mb-6 text-text-primary">Client Dashboard — Our Services</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {services.map((service) => (
           <div key={service.idServicio} className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300">

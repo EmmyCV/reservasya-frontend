@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ClientDashboard from './pages/ClientDashboard';
+import EmpleadoDashboard from './pages/EmpleadoDashboard';
 import MyReservationsPage from './pages/MyReservationsPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminPreview from './pages/AdminPreview';
@@ -39,6 +40,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['Cliente']}>
                   <MyReservationsPage />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Empleado (Empleado) Routes */}
+            <Route 
+              path="/empleado" 
+              element={
+                <ProtectedRoute allowedRoles={["Empleado"]}>
+                  <EmpleadoDashboard />
                 </ProtectedRoute>
               } 
             />

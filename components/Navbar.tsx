@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import logoRosa from '../src/assets/logorosa.png';
+// Use an absolute path from the project root for static assets to avoid
+// occasional relative-resolution issues during HMR.
+import logoRosa from '/src/assets/logorosa.png';
 
 const Navbar: React.FC = () => {
   const { session, profile, signOut } = useAuth();
@@ -24,16 +26,16 @@ const Navbar: React.FC = () => {
           <div className="flex items-center space-x-4">
             {session && profile ? (
               <>
-                {profile.rol === 'Cliente' && (
+                {profile?.rol === 'Cliente' && (
                   <>
                     <Link to="/dashboard" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Tablero</Link>
                     <Link to="/my-reservations" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Mis Reservas</Link>
                   </>
                 )}
-                {(profile.rol === 'Admin' || profile.rol === 'Recepcionista') && (
+                {(['Admin', 'Administrador', 'Recepcionista'] as string[]).includes(profile?.rol as string) && (
                   <Link to="/admin" className="text-gray-600 hover:text-primary px-3 py-2 rounded-md text-sm font-medium">Panel de Administración</Link>
                 )}
-                <span className="text-gray-700 text-sm">¡Hola, {profile.nombre}!</span>
+                <span className="text-gray-700 text-sm">¡Hola, {profile?.nombre ?? 'usuario'}!</span>
                 <button
                   onClick={handleSignOut}
                   className="bg-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary-focus transition-colors"
