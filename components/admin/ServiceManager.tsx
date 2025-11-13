@@ -11,18 +11,38 @@ const ServiceManager: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentService, setCurrentService] = useState<Partial<Servicio>>({});
 
-    const fetchServices = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase.from('servicio').select('*').order('nombre');
-            if (error) throw error;
-            setServices(data || []);
-        } catch (err: any) {
-            setError('Error al obtener los servicios.');
-        } finally {
-            setLoading(false);
+   const fetchServices = useCallback(async () => {
+    setLoading(true);
+    try {
+        // Obtener servicios sin alias y mapear manualmente los campos al modelo `Servicio`
+        const { data, error } = await supabase
+            .from('servicio')
+            .select('idservicio, nombreservicio, descripcion, duracion, precio')
+            .order('nombreservicio');
+
+        if (error) {
+            console.error('Supabase error fetching servicios:', error);
+            throw error;
         }
-    }, []);
+
+        // Convertir los nombres de columnas de la DB a los del frontend
+        const formattedData = (data || []).map((s: any) => ({
+            idServicio: s.idservicio,
+            nombre: s.nombreservicio,
+            descripcion: s.descripcion,
+            duracion: s.duracion,
+            precio: s.precio,
+        })) as Servicio[];
+
+        setServices(formattedData);
+    } catch (err: any) {
+        console.error('Error en fetchServices:', err);
+        setError(err?.message || JSON.stringify(err) || 'Error al obtener los servicios.');
+    } finally {
+        setLoading(false);
+    }
+}, []);
+
 
     useEffect(() => {
         fetchServices();
@@ -51,10 +71,22 @@ const ServiceManager: React.FC = () => {
             let response;
             if (currentService.idServicio) {
                 // Update
-                response = await supabase.from('servicio').update(serviceData).eq('idServicio', currentService.idServicio);
+                response = await supabase.from('servicio').update({
+  nombreservicio: serviceData.nombre,
+  descripcion: serviceData.descripcion,
+  duracion: serviceData.duracion,
+  precio: serviceData.precio,
+}).eq('idservicio', currentService.idServicio);
+
             } else {
                 // Insert
-                response = await supabase.from('servicio').insert(serviceData);
+                response = await supabase.from('servicio').insert([{
+  nombreservicio: serviceData.nombre,
+  descripcion: serviceData.descripcion,
+  duracion: serviceData.duracion,
+  precio: serviceData.precio,
+}]);
+
             }
             if (response.error) throw response.error;
 
@@ -68,7 +100,7 @@ const ServiceManager: React.FC = () => {
     const handleDelete = async (idServicio: number) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este servicio? Esta acción no se puede deshacer.')) {
             try {
-                const { error } = await supabase.from('servicio').delete().eq('idServicio', idServicio);
+                const { error } = await supabase.from('servicio').delete().eq('idservicio', idServicio);
                 if (error) throw error;
                 fetchServices();
             } catch (err: any) {
@@ -76,9 +108,6 @@ const ServiceManager: React.FC = () => {
             }
         }
     };
-
-    if (loading) return <div className="flex justify-center"><Spinner /></div>;
-    if (error) return <p className="text-red-500">{error}</p>;
 
     return (
         <div className="p-4 bg-white rounded-lg shadow">
@@ -88,30 +117,42 @@ const ServiceManager: React.FC = () => {
                     Añadir Servicio
                 </button>
             </div>
+
+            {/* Show error banner but keep the page interactive so admin can still add services */}
+            {error && (
+                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                    {error}
+                </div>
+            )}
+
             <div className="overflow-x-auto">
-                <table className="min-w-full bg-white">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="py-3 px-4 text-left">Nombre</th>
-                            <th className="py-3 px-4 text-left">Duración (min)</th>
-                            <th className="py-3 px-4 text-left">Precio ($)</th>
-                            <th className="py-3 px-4 text-left">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {services.map(s => (
-                            <tr key={s.idServicio} className="border-b">
-                                <td className="py-3 px-4">{s.nombre}</td>
-                                <td className="py-3 px-4">{s.duracion}</td>
-                                <td className="py-3 px-4">{s.precio.toFixed(2)}</td>
-                                <td className="py-3 px-4 flex gap-2">
-                                    <button onClick={() => handleOpenModal(s)} className="text-blue-600 hover:underline text-sm">Editar</button>
-                                    <button onClick={() => handleDelete(s.idServicio)} className="text-red-600 hover:underline text-sm">Eliminar</button>
-                                </td>
+                {loading ? (
+                    <div className="flex justify-center py-8"><Spinner /></div>
+                ) : (
+                    <table className="min-w-full bg-white">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="py-3 px-4 text-left">Nombre</th>
+                                <th className="py-3 px-4 text-left">Duración (min)</th>
+                                <th className="py-3 px-4 text-left">Precio ($)</th>
+                                <th className="py-3 px-4 text-left">Acciones</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {services.map(s => (
+                                <tr key={s.idServicio} className="border-b">
+                                    <td className="py-3 px-4">{s.nombre}</td>
+                                    <td className="py-3 px-4">{s.duracion}</td>
+                                    <td className="py-3 px-4">{s.precio.toFixed(2)}</td>
+                                    <td className="py-3 px-4 flex gap-2">
+                                        <button onClick={() => handleOpenModal(s)} className="text-blue-600 hover:underline text-sm">Editar</button>
+                                        <button onClick={() => handleDelete(s.idServicio)} className="text-red-600 hover:underline text-sm">Eliminar</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
             {isModalOpen && (

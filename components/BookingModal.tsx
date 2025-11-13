@@ -30,7 +30,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
       try {
         const { data, error } = await supabase
           .from('empleadoserviciohorario')
-          .select('idEmpleado, Empleado:usuario(idUsuario, nombre)')
+          .select('idEmpleado, Empleado:usuario(id, nombre)')
           .eq('idServicio', service.idServicio);
         if (error) throw error;
         
@@ -40,12 +40,12 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     data.forEach(item => {
       // Empleado can be returned as an object or as an array depending on relation
       const empleado = Array.isArray(item.Empleado) ? item.Empleado[0] : item.Empleado;
-      if (empleado && !seenIds.has(empleado.idUsuario)) {
+      if (empleado && !seenIds.has(empleado.id)) {
         uniqueEmployees.push({
-          idUsuario: empleado.idUsuario,
+          id: empleado.id,
           nombre: empleado.nombre
         });
-        seenIds.add(empleado.idUsuario);
+        seenIds.add(empleado.id);
       }
     });
 
@@ -75,7 +75,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
         await supabase
         .from('empleadoserviciohorario')
                 .select('idHorario')
-                .eq('idEmpleado', selectedEmployee.idUsuario)
+                .eq('idEmpleado', selectedEmployee.id)
                 .eq('idServicio', service.idServicio)
             ).data?.map(h => h.idHorario) || [])
             .eq('diaSemana', dayOfWeek);
@@ -87,7 +87,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     const { data: reservations, error: reservationError } = await supabase
       .from('reserva')
       .select('hora, Servicio:servicio(duracion)')
-            .eq('idEmpleado', selectedEmployee.idUsuario)
+            .eq('idEmpleado', selectedEmployee.id)
             .eq('fecha', selectedDate)
             .in('estado', ['activa']);
 
@@ -146,8 +146,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     setError(null);
     try {
       const { error } = await supabase.from('reserva').insert({
-        idUsuarioCliente: profile.idUsuario,
-        idEmpleado: selectedEmployee.idUsuario,
+        idUsuarioCliente: profile.id,
+        idEmpleado: selectedEmployee.id,
         idServicio: service.idServicio,
         fecha: selectedDate,
         hora: selectedSlot,
@@ -181,7 +181,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
           {loading && step === 1 ? <Spinner /> : (
             <div className="flex flex-wrap gap-2">
               {employees.map(emp => (
-                <button key={emp.idUsuario} onClick={() => { setSelectedEmployee(emp); setStep(2); }} className={`px-4 py-2 rounded-md border ${selectedEmployee?.idUsuario === emp.idUsuario ? 'bg-primary text-white' : 'bg-gray-100'}`}>
+                <button key={emp.id} onClick={() => { setSelectedEmployee(emp); setStep(2); }} className={`px-4 py-2 rounded-md border ${selectedEmployee?.id === emp.id ? 'bg-primary text-white' : 'bg-gray-100'}`}>
                   {emp.nombre}
                 </button>
               ))}

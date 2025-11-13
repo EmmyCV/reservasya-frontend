@@ -32,7 +32,7 @@ const StylistsManager: React.FC = () => {
       ) : (
         <ul className="space-y-2">
           {stylists.map(s => (
-            <li key={s.idUsuario} className="p-3 border rounded flex justify-between items-center">
+            <li key={s.id} className="p-3 border rounded flex justify-between items-center">
               <div>
                 <div className="font-medium">{s.nombre}</div>
                 <div className="text-sm text-gray-500">{s.correo}</div>

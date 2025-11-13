@@ -16,11 +16,12 @@ const AllReservations: React.FC = () => {
             let query = supabase
                 .from('reserva')
                 .select(`
-                    *,
-                    Usuario:usuario!Reserva_idUsuarioCliente_fkey (*),
-                    Servicio:servicio (*),
-                    Empleado:usuario!Reserva_idEmpleado_fkey (*)
-                `);
+    *,
+    Cliente:usuario!reserva_idcliente_fkey (*),
+    Empleado:usuario!reserva_idempleado_fkey (*),
+    Servicio:servicio!reserva_idservicio_fkey (*)
+`)
+;
 
             if (filterDate) {
                 query = query.eq('fecha', filterDate);
