@@ -17,10 +17,13 @@ const ClientDashboard: React.FC = () => {
   useEffect(() => {
     const fetchServices = async () => {
       setLoading(true);
-      try {
-        const { data, error } = await supabase.from('Servicio').select('*');
+        try {
+        // Alias DB columns to the frontend-friendly names
+        const { data, error } = await supabase
+          .from('servicio')
+          .select('idservicio as idServicio, nombreservicio as nombre, descripcion, duracion, precio');
         if (error) throw error;
-        setServices(data || []);
+        setServices((data as unknown as Servicio[]) || []);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch services.');
       } finally {

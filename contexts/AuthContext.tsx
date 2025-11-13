@@ -90,17 +90,16 @@ const fetchUserRole = async (userId: string): Promise<Role> => {
       if (currentUser) {
         newRole = await fetchUserRole(currentUser.id);
         setRole(newRole);
-
-        // Lógica de Redirección (solo para SIGNED_IN)
-        if (event === 'SIGNED_IN') {
-          if (newRole === 'Administrador') {
-            navigate('/admin/dashboard', { replace: true });
-          } else if (newRole === 'Empleado') {
-            navigate('/empleado/dashboard', { replace: true });
-          } else {
-            navigate('/', { replace: true });
-          }
-        }
+// Lógica de Redirección (solo para SIGNED_IN)
+if (event === 'SIGNED_IN') {
+  if (newRole === 'Administrador') {
+    navigate('/admin', { replace: true });
+  } else if (newRole === 'Empleado') {
+    navigate('/empleado', { replace: true });
+  } else {
+    navigate('/dashboard', { replace: true });
+  }
+}
       } else {
         // Usuario deslogueado: Limpiar estado y redirigir a login
         setRole(null);
