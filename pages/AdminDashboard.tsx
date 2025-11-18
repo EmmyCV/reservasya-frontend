@@ -5,10 +5,10 @@ import ClientsManager from '../components/admin/ClientsManager';
 import StylistsManager from '../components/admin/StylistsManager';
 import SystemSettings from '../components/admin/SystemSettings';
 import AgendaManager from '../components/admin/AgendaManager';
-import PersonnelManager from '../components/admin/PersonnelManager';
+import PersonnelManager from '../components/admin/PersonalManager';
 import ReportsManager from '../components/admin/ReportsManager';
 
-type AdminTab = 'agenda' | 'clients' | 'services' | 'personnel' | 'reports' | 'settings';
+type AdminTab = 'agenda' | 'clients' | 'services' | 'personal' | 'reports' | 'settings';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('agenda');
@@ -21,7 +21,7 @@ const AdminDashboard: React.FC = () => {
         return <ClientsManager />;
       case 'services':
         return <ServiceManager />;
-      case 'personnel':
+      case 'personal':
         return <PersonnelManager />;
       case 'reports':
         return <ReportsManager />;
@@ -49,7 +49,7 @@ const AdminDashboard: React.FC = () => {
           <TabButton tab="agenda" label="Agenda y Planificación" />
           <TabButton tab="clients" label="Clientes y CRM" />
           <TabButton tab="services" label="Catálogo de Servicios" />
-          <TabButton tab="personnel" label="Personal y RRHH" />
+          <TabButton tab="personal" label="Personal y RRHH" />
           <TabButton tab="reports" label="Reportes y Análisis" />
           <TabButton tab="settings" label="Configuración del Sistema" />
         </div>

@@ -71,7 +71,7 @@ const AllReservations: React.FC = () => {
                             <th className="py-2 px-3 text-left">Servicio</th>
                             <th className="py-2 px-3 text-left">Empleado</th>
                             <th className="py-2 px-3 text-left">Estado</th>
-                            <th className="py-2 px-3 text-left">Acciones</th>
+                           
                         </tr>
                     </thead>
                     <tbody>
