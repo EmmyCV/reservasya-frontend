@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const HomePage: React.FC = () => {
-    const { user, role } = useAuth();
+      const { user, role } = useAuth();
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     
     // Array de imágenes que rotan
@@ -21,12 +21,14 @@ const HomePage: React.FC = () => {
     }, [images.length]);
 
     const getDashboardLink = () => {
-        if (!user) return "/login";
+          if (!user) return "/login";
         switch (role) {
-            case 'Administrador':
-                return "/admin";
+             case 'Administrador':
+                return  "/admin/dashboard";
             case 'Cliente':
-                return "/dashboard";
+            case 'Empleado':    
+                return "/EmpleadoDashboard";
+                
             default:
                 return "/login";
         }
@@ -101,8 +103,14 @@ const HomePage: React.FC = () => {
                     ))}
                 </div>
             </div>
+
+            {/* Sección de servicios tipo catálogo */}
+            <div className="w-full">
+                <HomeServicesSection />
+            </div>
         </div>
     );
 };
 
+import HomeServicesSection from '../components/HomeServicesSection';
 export default HomePage;

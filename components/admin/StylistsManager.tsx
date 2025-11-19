@@ -10,9 +10,16 @@ const StylistsManager: React.FC = () => {
     const fetch = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.from('usuario').select('*').eq('rol', 'Empleado').order('nombre');
+        const { data, error } = await supabase.from('usuario').select('*').order('nombre');
         if (error) throw error;
-        setStylists((data as any[]) || []);
+
+        // Filter locally to be resilient to different role values (Empleado, empleado, Estilista, etc.)
+        const filtered = (data || []).filter((u: any) => {
+          const r = (u?.rol || '').toString().toLowerCase();
+          return /emplead|estilist/.test(r);
+        });
+
+        setStylists(filtered as any[]);
       } catch (err) {
         setStylists([]);
       } finally {
@@ -35,9 +42,9 @@ const StylistsManager: React.FC = () => {
             <li key={s.id} className="p-3 border rounded flex justify-between items-center">
               <div>
                 <div className="font-medium">{s.nombre}</div>
-                <div className="text-sm text-gray-500">{s.correo}</div>
+                <div className="text-sm text-gray-500">{s.rol}</div>
               </div>
-              <div className="text-sm text-gray-600">{s.telefono}</div>
+              <div className="text-sm text-gray-600">{s.telefono || '—'}</div>
             </li>
           ))}
         </ul>

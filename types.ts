@@ -66,6 +66,7 @@ export interface Reserva {
     nombre: string;
   };
   Usuario: {
+    telefono: string;
     nombre: string;
     correo: string;
   };
