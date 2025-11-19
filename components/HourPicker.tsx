@@ -3,14 +3,22 @@ import { supabase } from "../services/supabase";
 
 interface Props {
   idEmpleado: string;
-  fecha: string; // yyyy-mm-dd
+  fecha: string;
   idServicio: number;
-  duracionServicio: number; // horas completas
+  duracionServicio: number;
+  selectedHora?: string;
   onSelectHora: (hora: string) => void;
   showDebug?: boolean;
 }
 
-const HourPicker: React.FC<Props> = ({ idEmpleado, fecha, duracionServicio, onSelectHora, showDebug }) => {
+const HourPicker: React.FC<Props> = ({
+  idEmpleado,
+  fecha,
+  duracionServicio,
+  selectedHora,
+  onSelectHora,
+  showDebug
+}) => {
   const [horasDisponibles, setHorasDisponibles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -18,15 +26,14 @@ const HourPicker: React.FC<Props> = ({ idEmpleado, fecha, duracionServicio, onSe
   const [debugReservas, setDebugReservas] = useState<any[] | null>(null);
 
   useEffect(() => {
-    if (fecha) cargarHoras();
-  }, [fecha, idEmpleado, duracionServicio]);
+    if (fecha && idEmpleado) cargarHoras();
+  }, [fecha, idEmpleado]); // ✅ QUITAMOS duracionServicio
 
   const cargarHoras = async () => {
     setLoading(true);
     setMensaje(null);
 
-    // ❌ Si el día es lunes, no trabajamos
-    const day = new Date(fecha).getDay(); // 0=Domingo, 1=Lunes...
+    const day = new Date(fecha).getDay();
     if (day === 1) {
       setMensaje("No trabajamos los días lunes.");
       setHorasDisponibles([]);
@@ -34,100 +41,84 @@ const HourPicker: React.FC<Props> = ({ idEmpleado, fecha, duracionServicio, onSe
       return;
     }
 
-    // 1) Obtener horario(s) del empleado — más tolerante a nombres de columna y múltiples filas
-    console.debug('[HourPicker] buscando empleado_horario para id=', idEmpleado, 'fecha=', fecha);
+    // 1) obtener horario del empleado
     let turnoData: any[] = [];
-    try {
-      const { data: rows1, error: err1 } = await supabase
-        .from('empleado_horario')
-        .select(`idhorario, horario(horainicio, horafin)`)
-        .eq('idusuarioempleado', idEmpleado);
-      if (err1) console.debug('[HourPicker] empleado_horario err (idusuarioempleado)', err1);
-      if (rows1 && rows1.length) turnoData = rows1;
+    const { data } = await supabase
+      .from("empleado_horario")
+      .select(`idhorario, horario(horainicio, horafin)`)
+      .eq("idusuarioempleado", idEmpleado);
 
-      // si no vino nada, intentar por otra posible columna `idempleado`
-      if (!turnoData.length) {
-        const { data: rows2, error: err2 } = await supabase
-          .from('empleado_horario')
-          .select(`idhorario, horario(horainicio, horafin)`)
-          .eq('idempleado', idEmpleado);
-        if (err2) console.debug('[HourPicker] empleado_horario err (idempleado)', err2);
-        if (rows2 && rows2.length) turnoData = rows2;
-      }
-    } catch (e) {
-      console.debug('[HourPicker] fallo consulta empleado_horario', e);
-    }
+    if (data) turnoData = data;
 
-    console.debug('[HourPicker] turnoData=', turnoData);
-    setDebugTurno(turnoData.length ? turnoData : null);
+    setDebugTurno(turnoData);
 
-    // Buscar la primera fila de horario válida (puede venir anidada o requerir fallback a tabla `horario`)
-    const horarioRows: any[] = [];
-    for (const row of turnoData) {
-      if (row.horario) {
-        const h = Array.isArray(row.horario) ? row.horario[0] : row.horario;
-        horarioRows.push(h);
-        continue;
-      }
-      if (row.idhorario) {
-        try {
-          const { data: hdata, error: herr } = await supabase
-            .from('horario')
-            .select('horainicio, horafin')
-            .eq('idhorario', row.idhorario)
-            .maybeSingle();
-          if (!herr && hdata) horarioRows.push(hdata);
-        } catch (e) {
-          console.debug('[HourPicker] error fetch horario by idhorario', e);
-        }
-      }
-    }
-
-    if (!horarioRows.length) {
-      setMensaje('El empleado no tiene horario asignado.');
+    if (!turnoData.length) {
+      setMensaje("El empleado no tiene horario asignado.");
       setHorasDisponibles([]);
       setLoading(false);
       return;
     }
 
-    const h = horarioRows[0];
-    // Accept multiple possible column namings
-    const horaInicio = h?.horainicio ?? h?.horaInicio ?? h?.hora_inicio ?? '';
-    const horaFin = h?.horafin ?? h?.horaFin ?? h?.hora_fin ?? '';
+    const horario = Array.isArray(turnoData[0].horario)
+      ? turnoData[0].horario[0]
+      : turnoData[0].horario;
 
-    // 2) Obtener reservas ya ocupadas
-      const { data: reservas, error: reservasErr } = await supabase
-        .from("reserva")
-        .select("hora, duracion")
-        .eq("idempleado", idEmpleado)
-        .eq("fecha", fecha);
-    if (reservasErr) console.debug('[HourPicker] error reservas', reservasErr);
-    console.debug('[HourPicker] reservas=', reservas);
-    setDebugReservas(reservas ?? null);
+    const horaInicio = horario?.horainicio;
+    const horaFin = horario?.horafin;
 
-    // 3) Generar bloques posibles
+    if (!horaInicio || !horaFin) {
+      setMensaje("Horario inválido.");
+      setHorasDisponibles([]);
+      setLoading(false);
+      return;
+    }
+
+    // 2) obtener reservas
+    const { data: reservas } = await supabase
+      .from("reserva")
+      .select("hora, idservicio")
+      .eq("idempleado", idEmpleado)
+      .eq("fecha", fecha);
+
+    setDebugReservas(reservas ?? []);
+
+    const horasBloqueadas: string[] = [];
+
+    for (const r of reservas ?? []) {
+      const start = parseInt(r.hora.substring(0, 2));
+
+      const { data: servData } = await supabase
+        .from("servicio")
+        .select("duracion")
+        .eq("idServicio", r.idservicio)
+        .single();
+
+      const duracionReserva = Math.ceil((servData?.duracion ?? 60) / 60);
+
+      for (let i = 0; i < duracionReserva; i++) {
+        horasBloqueadas.push(`${String(start + i).padStart(2, "0")}:00`);
+      }
+    }
+
+    // 3) generar bloques válidos
     const posibles = generarBloques(horaInicio, horaFin, duracionServicio);
 
-    // 4) Excluir ocupadas
-    const ocupadas = reservas?.map(r => r.hora) ?? [];
-    const libres = posibles.filter(h => !ocupadas.includes(h));
+    // 4) filtrar ocupados
+    const libres = posibles.filter(h => !horasBloqueadas.includes(h));
 
-    if (!libres.length) setMensaje("No hay horario disponible");
+    if (!libres.length) setMensaje("No hay horarios disponibles.");
 
     setHorasDisponibles(libres);
     setLoading(false);
   };
 
-  /**
-   * Generar bloques de horas
-   */
-  const generarBloques = (inicio: string, fin: string, horasServicio: number): string[] => {
-    let resultado: string[] = [];
-    let hIni = parseInt(inicio.split(":")[0]);
-    let hFin = parseInt(fin.split(":")[0]);
+  const generarBloques = (inicio: string, fin: string, duracion: number): string[] => {
+    const resultado: string[] = [];
+    const hIni = parseInt(inicio.split(":")[0]);
+    const hFin = parseInt(fin.split(":")[0]);
 
-    for (let h = hIni; h + horasServicio <= hFin; h++) {
-      resultado.push(`${h.toString().padStart(2, "0")}:00`);
+    for (let h = hIni; h + duracion <= hFin; h++) {
+      resultado.push(`${String(h).padStart(2, "0")}:00`);
     }
     return resultado;
   };
@@ -141,16 +132,20 @@ const HourPicker: React.FC<Props> = ({ idEmpleado, fecha, duracionServicio, onSe
         <button
           key={hora}
           onClick={() => onSelectHora(hora)}
-          className="px-3 py-2 bg-pink-300 text-white rounded-lg hover:bg-pink-400"
+          className={`px-3 py-2 rounded-lg text-white transition
+            ${selectedHora === hora ? "bg-pink-500" : "bg-pink-300 hover:bg-pink-400"}
+          `}
         >
           {hora}
         </button>
       ))}
-      {/* Debug output */}
-      { showDebug && (
+
+      {showDebug && (
         <div className="col-span-3 mt-2 p-2 bg-gray-50 border rounded text-xs">
-          <strong>Debug horario (turno / reservas):</strong>
-          <pre className="text-xs max-h-40 overflow-auto">{JSON.stringify({ turno: debugTurno, reservas: debugReservas, disponibles: horasDisponibles }, null, 2)}</pre>
+          <strong>Debug:</strong>
+          <pre className="max-h-40 overflow-auto">
+{JSON.stringify({ horasDisponibles, reservas: debugReservas, turno: debugTurno }, null, 2)}
+          </pre>
         </div>
       )}
     </div>
@@ -158,4 +153,3 @@ const HourPicker: React.FC<Props> = ({ idEmpleado, fecha, duracionServicio, onSe
 };
 
 export default HourPicker;
-

@@ -6,57 +6,58 @@ import Spinner from './Spinner';
 import HourPicker from './HourPicker';
 
 interface BookingModalProps {
-  service: Servicio;
+  service: Servicio | null;
   onClose: () => void;
 }
 
 const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
+  if (!service) return null;
+
   const [step, setStep] = useState(1);
   const [employees, setEmployees] = useState<Empleado[]>([]);
   const [rawEmployees, setRawEmployees] = useState<any[] | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<Empleado | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const { profile } = useAuth();
+  const { user } = useAuth();
 
-  // 📌 Traer empleados que realizan el servicio
+  // =============================
+  // TRAER EMPLEADOS DEL SERVICIO
+  // =============================
   useEffect(() => {
     const fetchEmployees = async () => {
+      if (!service?.idServicio) return;
+
       setLoading(true);
       setError(null);
+
       try {
         const { data, error } = await supabase
           .from('empleado_servicio')
-          .select('idusuarioempleado, usuario(id, nombre)')
+          .select('idusuarioempleado, idempleadoservicio, usuario(id, nombre)')
           .eq('idservicio', service.idServicio);
 
         if (error) throw error;
 
-        console.debug('[BookingModal] empleado_servicio raw data:', data);
-
-        const unique: Empleado[] = [];
+        const lista: Empleado[] = [];
         const seen = new Set<string>();
 
         (data || []).forEach((item: any) => {
           const usuario = Array.isArray(item.usuario) ? item.usuario[0] : item.usuario;
-          // prefer usuario.id (UUID) if available, otherwise use idusuarioempleado
-          const idRaw = usuario?.id ?? item.idusuarioempleado;
-          const id = idRaw != null ? String(idRaw) : null;
+          const id = usuario?.id ?? item.idusuarioempleado;
           const nombre = usuario?.nombre ?? item.nombre;
 
           if (id && nombre && !seen.has(id)) {
-            unique.push({ id, nombre });
+            lista.push({ id, nombre });
             seen.add(id);
           }
         });
 
-        console.debug('[BookingModal] mapped employees:', unique);
         setRawEmployees(data || null);
-        setEmployees(unique);
+        setEmployees(lista);
       } catch {
         setError('Error al obtener empleados para este servicio.');
       } finally {
@@ -65,36 +66,81 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     };
 
     fetchEmployees();
-  }, [service.idServicio]);
+  }, [service?.idServicio]);
 
-  // 📌 Guardar reserva
+  // =============================
+  // GUARDAR RESERVA
+  // =============================
   const handleBooking = async () => {
-    if (!profile || !selectedEmployee || !selectedSlot || !selectedDate) {
+    if (!user || !selectedEmployee || !selectedSlot || !selectedDate) {
       setError('Todos los campos son obligatorios.');
       return;
     }
+
     setLoading(true);
+    setError(null);
+
     try {
+      const horaInicio = `${selectedSlot}:00`;
+      const duracion = Math.ceil((service.duracion ?? 60) / 60);
+
+      const empleadoServicio = rawEmployees?.find(
+        e => e.idusuarioempleado === selectedEmployee.id
+      );
+
+      if (!empleadoServicio) {
+        throw new Error("No se encontró la relación empleado-servicio.");
+      }
+
+      const { data: reservas } = await supabase
+        .from('reserva')
+        .select('hora')
+        .eq('idempleado', selectedEmployee.id)
+        .eq('fecha', selectedDate);
+
+      const horaNum = parseInt(selectedSlot);
+      const horasOcupadas = reservas?.map(r => parseInt(r.hora.split(':')[0])) ?? [];
+
+      for (let i = 0; i < duracion; i++) {
+        if (horasOcupadas.includes(horaNum + i)) {
+          setError('⛔ Ese horario ya está reservado.');
+          setLoading(false);
+          return;
+        }
+      }
+
       const { error } = await supabase.from('reserva').insert({
-        idusuariocliente: profile.id,
+        idusuariocliente: user.id,
         idempleado: selectedEmployee.id,
         idservicio: service.idServicio,
         fecha: selectedDate,
-        hora: selectedSlot,
-        estado: 'activa',
+        hora: horaInicio,
+
+        // ❗ YA NO EXISTE cancelada
+        estado: 'pendiente',
+
+        disponible: false // <- si esto tampoco existe, dímelo y lo quitamos
       });
+
       if (error) throw error;
+
       setSuccess(true);
-    } catch {
-      setError('No se pudo confirmar la reserva.');
+
+    } catch (err) {
+      console.error("📌 Error guardando reserva:", err);
+      setError('❌ No se pudo confirmar la reserva.');
     } finally {
       setLoading(false);
     }
   };
 
+  // =============================
+  // UI
+  // =============================
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 m-4 max-h-[90vh] overflow-y-auto">
+
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-2xl font-bold text-text-primary">
             Reservar: {service.nombre}
@@ -104,52 +150,32 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
 
         {!success ? (
           <>
-            {/* PASO 1 */}
+            {/* PASO 1: EMPLEADO */}
             <div className="mb-4">
               <h4 className="font-semibold text-lg mb-2">1. Selecciona un especialista</h4>
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  onClick={() => setShowDebug(s => !s)}
-                  className="text-sm px-2 py-1 bg-gray-200 rounded"
-                >
-                  {showDebug ? 'Ocultar debug' : 'Mostrar debug'}
-                </button>
-                <span className="text-xs text-gray-500">(muestra objetos crudos de la consulta)</span>
+              <div className="flex flex-wrap gap-2">
+                {employees.map(emp => (
+                  <button
+                    key={emp.id}
+                    onClick={() => {
+                      setSelectedEmployee(emp);
+                      setStep(2);
+                      setSelectedDate('');
+                      setSelectedSlot(null);
+                    }}
+                    className={`px-4 py-2 rounded-md border transition ${
+                      selectedEmployee?.id === emp.id
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
+                  >
+                    {emp.nombre}
+                  </button>
+                ))}
               </div>
-              {loading && !employees.length ? (
-                <Spinner />
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {employees.map(emp => (
-                    <button
-                      key={emp.id}
-                      onClick={() => {
-                        setSelectedEmployee(emp);
-                        setStep(2);
-                        setSelectedDate('');
-                        setSelectedSlot(null);
-                      }}
-                      className={`px-4 py-2 rounded-md border ${
-                        selectedEmployee?.id === emp.id
-                          ? 'bg-primary text-white'
-                          : 'bg-gray-100'
-                      }`}
-                    >
-                      {emp.nombre}
-                    </button>
-                  ))}
-                  {!employees.length && <p>No hay empleados disponibles.</p>}
-                </div>
-              )}
-              {showDebug && (
-                <div className="mt-3 p-2 bg-gray-50 border rounded text-xs">
-                  <strong>Raw empleado_servicio:</strong>
-                  <pre className="text-xs max-h-40 overflow-auto">{JSON.stringify(rawEmployees, null, 2)}</pre>
-                </div>
-              )}
             </div>
 
-            {/* PASO 2 */}
+            {/* PASO 2: FECHA */}
             {step >= 2 && (
               <div className="mb-4">
                 <h4 className="font-semibold text-lg mb-2">2. Selecciona una fecha</h4>
@@ -167,25 +193,26 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
               </div>
             )}
 
-            {/* PASO 3 */}
+            {/* PASO 3: HORA */}
             {step >= 3 && selectedEmployee && selectedDate && (
               <div className="mb-4">
                 <h4 className="font-semibold text-lg mb-2">3. Selecciona una hora</h4>
+
                 <HourPicker
                   idEmpleado={String(selectedEmployee.id)}
                   fecha={selectedDate}
                   idServicio={service.idServicio}
                   duracionServicio={Math.ceil((service.duracion ?? 60) / 60)}
-                  showDebug={showDebug}
-                  onSelectHora={(hour) => {
-                    setSelectedSlot(hour);
+                  selectedHora={selectedSlot ?? undefined}
+                  onSelectHora={(hora) => {
+                    setSelectedSlot(hora);
                     setStep(4);
                   }}
                 />
               </div>
             )}
 
-            {/* PASO 4 */}
+            {/* PASO 4: CONFIRMAR */}
             {step >= 4 && selectedSlot && (
               <div>
                 <h4 className="font-semibold text-lg mb-2">4. Confirmación</h4>
@@ -213,15 +240,19 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
           <div className="text-center p-4">
             <h3 className="text-2xl font-bold text-green-600 mb-4">¡Reserva confirmada!</h3>
             <p>
-              Tu cita para <strong>{service.nombre}</strong> con{' '}
-              <strong>{selectedEmployee?.nombre}</strong> el <strong>{selectedDate}</strong> a las{' '}
-              <strong>{selectedSlot}</strong> está confirmada.
+              Tu cita para <strong>{service.nombre}</strong> con
+              <strong> {selectedEmployee?.nombre}</strong> el <strong>{selectedDate}</strong> a las
+              <strong> {selectedSlot}</strong> está confirmada.
             </p>
-            <button onClick={onClose} className="mt-6 bg-primary text-white py-2 px-6 rounded-md hover:bg-primary-focus">
+            <button
+              onClick={onClose}
+              className="mt-6 bg-primary text-white py-2 px-6 rounded-md hover:bg-primary-focus"
+            >
               Cerrar
             </button>
           </div>
         )}
+
       </div>
     </div>
   );

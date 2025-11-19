@@ -19,7 +19,7 @@ export interface Servicio {
   idServicio: number; // Asumo que es 'idservicio' en tu BD, si es UUID cámbialo a string
   nombre: string;
   descripcion: string;
-  duracion: number; // in hours
+  duracion: number; // en horas
   precio: number;
   imagenUrl?: string; // URL de la imagen del servicio
   tipo?: string; // Tipo de servicio (Cabello, Pestañas, etc.)
