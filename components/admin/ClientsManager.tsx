@@ -16,7 +16,7 @@ const ClientsManager: React.FC = () => {
       // Run the Supabase query with a timeout to avoid hanging indefinitely
       const query = supabase
         .from('usuario')
-        .select('id,nombre,correo,telefono')
+        .select('id,nombre,rol,telefono')
         .eq('rol', 'Cliente')
         .order('nombre');
 
@@ -93,9 +93,9 @@ const ClientsManager: React.FC = () => {
               <li key={c.id} className="p-3 border rounded flex justify-between items-center">
                 <div>
                   <div className="font-medium">{c.nombre}</div>
-                  <div className="text-sm text-gray-500">{c.correo}</div>
+                  <div className="text-sm text-gray-500">{c.rol}</div>
                 </div>
-                <div className="text-sm text-gray-600">{c.telefono}</div>
+                <div className="text-sm text-gray-600">{c.telefono || '—'}</div>
               </li>
             ))}
           </ul>

@@ -18,12 +18,20 @@ const ClientDashboard: React.FC = () => {
     const fetchServices = async () => {
       setLoading(true);
         try {
-        // Alias DB columns to the frontend-friendly names
+        // Request raw DB columns and map them to the frontend-friendly names
         const { data, error } = await supabase
           .from('servicio')
-          .select('idservicio as idServicio, nombreservicio as nombre, descripcion, duracion, precio');
+          .select('idservicio, nombreservicio, descripcion, duracion, precio, imagen_url');
         if (error) throw error;
-        setServices((data as unknown as Servicio[]) || []);
+        const mapped = ((data as any[]) || []).map((s: any) => ({
+          idServicio: s.idservicio ?? s.id,
+          nombre: s.nombreservicio ?? s.nombre,
+          descripcion: s.descripcion,
+          duracion: s.duracion,
+          precio: s.precio,
+          imagenUrl: s.imagen_url ?? s.imagenUrl ?? null,
+        } as Servicio));
+        setServices(mapped);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch services.');
       } finally {
@@ -71,21 +79,21 @@ const ClientDashboard: React.FC = () => {
   return (
     <div>
       <FlashBanner />
-      <h1 className="text-3xl font-bold mb-6 text-text-primary">Client Dashboard — Our Services</h1>
+      <h1 className="text-3xl font-bold mb-6 text-text-primary"> Nuestros servicios</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {services.map((service) => (
           <div key={service.idServicio} className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300">
             <h2 className="text-xl font-semibold text-primary mb-2">{service.nombre}</h2>
             <p className="text-text-secondary mb-4">{service.descripcion || 'No description available.'}</p>
             <div className="flex justify-between items-center text-sm text-text-primary mb-4">
-              <span><strong>Duration:</strong> {service.duracion} minutes</span>
-              <span><strong>Price:</strong> ${service.precio.toFixed(2)}</span>
+              <span><strong>Duración:</strong> {service.duracion} horas</span>
+              <span><strong>Precio:</strong> ${service.precio.toFixed(2)}</span>
             </div>
             <button
               onClick={() => setSelectedService(service)}
               className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-primary-focus transition-colors"
             >
-              Book Now
+              Agendar Cita
             </button>
           </div>
         ))}
