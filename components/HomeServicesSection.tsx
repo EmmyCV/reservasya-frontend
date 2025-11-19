@@ -27,7 +27,19 @@ const HomeServicesSection: React.FC = () => {
         idServicio: s.idservicio,
         nombre: s.nombreservicio,
         descripcion: s.descripcion,
-        duracion: s.duracion,
+        // Normalize duration to minutes
+        duracion: (function () {
+          const v = s.duracion;
+          if (v == null) return 60;
+          if (typeof v === 'number') return v;
+          if (/^\d+$/.test(String(v))) return Number(v);
+          if (/^\d{2}:\d{2}:\d{2}$/.test(String(v))) {
+            const parts = String(v).split(':').map(Number);
+            return (parts[0] || 0) * 60 + (parts[1] || 0);
+          }
+          const n = Number(v);
+          return Number.isFinite(n) ? n : 60;
+        })(),
         precio: s.precio,
         imagenKey: s.imagen_url,
         tipo: s.tipo,

@@ -23,14 +23,29 @@ const ClientDashboard: React.FC = () => {
           .from('servicio')
           .select('idservicio, nombreservicio, descripcion, duracion, precio, imagen_url');
         if (error) throw error;
-        const mapped = ((data as any[]) || []).map((s: any) => ({
-          idServicio: s.idservicio ?? s.id,
-          nombre: s.nombreservicio ?? s.nombre,
-          descripcion: s.descripcion,
-          duracion: s.duracion,
-          precio: s.precio,
-          imagenUrl: s.imagen_url ?? s.imagenUrl ?? null,
-        } as Servicio));
+        const mapped = ((data as any[]) || []).map((s: any) => {
+          // Normalize duration to minutes (number). DB may store as number, string, or 'HH:MM:SS'.
+          let durMin = 60;
+          if (s.duracion == null) durMin = 60;
+          else if (typeof s.duracion === 'number') durMin = s.duracion;
+          else if (/^\d+$/.test(String(s.duracion))) durMin = Number(s.duracion);
+          else if (/^\d{2}:\d{2}:\d{2}$/.test(String(s.duracion))) {
+            const parts = String(s.duracion).split(':').map(Number);
+            durMin = (parts[0] || 0) * 60 + (parts[1] || 0);
+          } else {
+            const n = Number(s.duracion);
+            durMin = Number.isFinite(n) ? n : 60;
+          }
+
+          return {
+            idServicio: s.idservicio ?? s.id,
+            nombre: s.nombreservicio ?? s.nombre,
+            descripcion: s.descripcion,
+            duracion: durMin,
+            precio: s.precio,
+            imagenUrl: s.imagen_url ?? s.imagenUrl ?? null,
+          } as Servicio;
+        });
         setServices(mapped);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch services.');
@@ -86,7 +101,12 @@ const ClientDashboard: React.FC = () => {
             <h2 className="text-xl font-semibold text-primary mb-2">{service.nombre}</h2>
             <p className="text-text-secondary mb-4">{service.descripcion || 'No description available.'}</p>
             <div className="flex justify-between items-center text-sm text-text-primary mb-4">
-              <span><strong>Duración:</strong> {service.duracion} horas</span>
+              <span>
+                <strong>Duración:</strong>{' '}
+                {service.duracion % 60 === 0
+                  ? `${service.duracion / 60} horas`
+                  : `${service.duracion} minutos`}
+              </span>
               <span><strong>Precio:</strong> ${service.precio.toFixed(2)}</span>
             </div>
             <button

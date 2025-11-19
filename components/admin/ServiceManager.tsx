@@ -35,7 +35,19 @@ const ServiceManager: React.FC = () => {
                 idServicio: s.idservicio,
                 nombre: s.nombreservicio,
                 descripcion: s.descripcion,
-                duracion: s.duracion,
+                                // Normalize duration to minutes
+                                duracion: (function () {
+                                    const v = s.duracion;
+                                    if (v == null) return 60;
+                                    if (typeof v === 'number') return v;
+                                    if (/^\d+$/.test(String(v))) return Number(v);
+                                    if (/^\d{2}:\d{2}:\d{2}$/.test(String(v))) {
+                                        const parts = String(v).split(':').map(Number);
+                                        return (parts[0] || 0) * 60 + (parts[1] || 0);
+                                    }
+                                    const n = Number(v);
+                                    return Number.isFinite(n) ? n : 60;
+                                })(),
                 precio: s.precio,
                 imagenUrl: s.imagen_url, // <-- Guardamos solo filename
                 tipo: s.tipo
@@ -54,7 +66,12 @@ const ServiceManager: React.FC = () => {
     }, [fetchServices]);
 
     const handleOpenModal = async (service: Partial<Servicio> = {}) => {
-        setCurrentService(service);
+        // Convert duración from minutes (stored in service.duracion) to hours for the admin form
+        const converted = { ...service } as any;
+        if (converted.duracion != null && typeof converted.duracion === 'number') {
+            converted.duracion = converted.duracion / 60; // hours
+        }
+        setCurrentService(converted);
         setSelectedFile(null);
         if (service.imagenUrl) {
             try {
@@ -180,7 +197,7 @@ const ServiceManager: React.FC = () => {
                             <tr key={s.idServicio} className="border-b">
                                 <td className="py-3 px-4">{s.nombre}</td>
                                 <td className="py-3 px-4">{s.tipo}</td>
-                                <td className="py-3 px-4">{String(s.duracion)}</td>
+                                    <td className="py-3 px-4">{s.duracion % 60 === 0 ? `${s.duracion / 60} h` : `${s.duracion} min`}</td>
                                 <td className="py-3 px-4">${s.precio}</td>
                                 <td className="py-3 px-4 flex gap-2">
                                     <button onClick={() => handleOpenModal(s)} className="text-blue-600">Editar</button>
