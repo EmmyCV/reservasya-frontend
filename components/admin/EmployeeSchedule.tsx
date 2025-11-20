@@ -2,73 +2,106 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "../../services/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 
-interface Turno {
-  dia: string;
-  turno: string;
+interface Horario {
+  idhorario: string;
+  tipo_turno: string;
+  activo: boolean;
+}
+
+interface Reserva {
+  fecha: string;
+  hora: string;
   estado: string;
 }
 
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-
 const EmployeeSchedule: React.FC = () => {
   const { user } = useAuth();
-  const [turnos, setTurnos] = useState<Turno[]>([]);
+
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [reservas, setReservas] = useState<Reserva[]>([]);
 
   useEffect(() => {
     if (!user) return;
 
-    const fetchSchedule = async () => {
-      const { data, error } = await supabase
+    const loadData = async () => {
+      // 1️⃣ Obtener horarios del empleado
+      const { data: horariosData, error: hError } = await supabase
         .from("empleado_horario")
-        .select("dia, turno, estado")
+        .select("idhorario, tipo_turno, activo")
         .eq("idusuarioempleado", user.id);
 
-      if (error) console.error(error);
-      setTurnos(data || []);
+      if (hError) {
+        console.error("❌ Error obteniendo horarios:", hError);
+        return;
+      }
+
+      setHorarios(horariosData || []);
+
+      // 2️⃣ Obtener reservas del empleado (NO idempleado)
+      const { data: reservasData, error: rError } = await supabase
+        .from("reserva")
+        .select("fecha, hora, estado")
+        .eq("idempleado", user.id)
+        .in("estado", ["pendiente"]);
+
+      if (rError) {
+        console.error("❌ Error obteniendo reservas:", rError);
+        return;
+      }
+
+      setReservas(reservasData || []);
     };
 
-    fetchSchedule();
+    loadData();
   }, [user]);
 
   return (
     <section className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-xl font-semibold mb-4">Horario laboral</h2>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 border">Día</th>
-              <th className="p-2 border">Turno</th>
-              <th className="p-2 border">Estado</th>
+      <h2 className="text-xl font-semibold mb-4">Mi Horario</h2>
+
+      <table className="w-full border mb-6">
+        <thead className="bg-gray-200">
+          <tr>
+            
+            <th className="p-2 border">Turno</th>
+            <th className="p-2 border">Activo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {horarios.map((t, idx) => (
+            <tr key={idx}>
+              
+              <td className="p-2 border">{t.tipo_turno}</td>
+              <td className="p-2 border">
+                {t.activo ? "✔ Activo" : "✖ Inactivo"}
+              </td>
             </tr>
-          </thead>
+          ))}
+        </tbody>
+      </table>
 
-          <tbody>
-            {turnos.map((t, i) => (
-              <tr key={i} className="text-center">
-                <td className="p-2 border">{t.dia}</td>
-                <td className="p-2 border">{t.turno}</td>
-                <td
-                  className={`p-2 border ${
-                    t.estado === "Disponible"
-                      ? "text-green-600"
-                      : "text-red-500"
-                  }`}
-                >
-                  {t.estado}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <h2 className="text-xl font-semibold mb-2">Mis Reservas</h2>
 
-        {turnos.length === 0 && (
-          <p className="text-gray-500 mt-2">
-            No tienes horario asignado aún.
-          </p>
-        )}
-      </div>
+      <table className="w-full border">
+        <thead className="bg-gray-200">
+          <tr>
+            <th className="p-2 border">Fecha</th>
+            <th className="p-2 border">Hora</th>
+            <th className="p-2 border">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reservas.map((r, idx) => (
+            <tr key={idx}>
+              <td className="p-2 border">{r.fecha}</td>
+              <td className="p-2 border">{r.hora}</td>
+              <td className="p-2 border">{r.estado}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
     </section>
   );
 };

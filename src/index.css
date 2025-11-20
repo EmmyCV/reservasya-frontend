@@ -1,0 +1,48 @@
+/* ======== Fondo general ======== */
+.fc-theme-standard td, 
+.fc-theme-standard th {
+  background: #FCF8F5;
+  border-color: #E3D5CC;
+}
+
+/* Día actual */
+.fc-day-today {
+  background: #F0E0D4 !important;
+}
+
+/* Header (mes, semana, día) */
+.fc-toolbar-title {
+  color: #A35C58 !important;
+  font-family: "Montserrat", sans-serif;
+}
+
+/* Botones */
+.fc-button {
+  background: #D8AFA7 !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 500;
+}
+
+.fc-button-active {
+  background: #A35C58 !important;
+}
+
+/* Eventos */
+.fc-event {
+  background: #A35C58 !important;
+  border: 1px solid #8C847E !important;
+  color: white !important;
+  font-family: "Poppins", sans-serif;
+  font-size: 0.85rem;
+}
+
+/* Hover */
+.fc-event:hover {
+  filter: brightness(1.1);
+}
+
+/* Días sin eventos */
+.fc-daygrid-day-number {
+  color: #8C847E !important;
+}
