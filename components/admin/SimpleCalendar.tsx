@@ -1,173 +1,274 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../services/supabase';
-import { Reserva } from '../../types';
+import React, { useEffect, useState } from "react";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import { supabase } from "../../services/supabase";
 
-function getMonthMatrix(year: number, month: number) {
-  const first = new Date(year, month, 1);
-  const startDay = first.getDay(); // 0 (Sun) - 6
-  // normalize so week starts Mon (1) ... Sun (0 -> 7)
-  const offset = (startDay + 6) % 7;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+// 🎨 Paleta de la empresa (tomada del adjunto). A35C58 es el acento principal.
+const COMPANY_PALETTE = [
+  "#A35C58", // acento principal
+  "#D8AFA7",
+  "#D2B4A3",
+  "#8C847E",
+  "#F0E0D4",
+  "#FCF8F5",
+];
 
-  const matrix: (number | null)[][] = [];
-  let week: (number | null)[] = [];
-  for (let i = 0; i < offset; i++) week.push(null);
-  for (let d = 1; d <= daysInMonth; d++) {
-    week.push(d);
-    if (week.length === 7) {
-      matrix.push(week);
-      week = [];
-    }
+// Nueva paleta de eventos: rosados / corales pastel pero saturados
+const EVENT_PALETTE = [
+  "#FF5E72", // coral fuerte
+  "#FF7A95", // rosa coral
+  "#FF6B8A",
+  "#FF8FA3",
+  "#FF4D6D",
+  "#F973A8",
+];
+
+// Deterministic color per employee id using la paleta de eventos
+const getEventColorForEmployee = (id: any) => {
+  if (!id) return EVENT_PALETTE[0];
+  const s = String(id);
+  // simple hash
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
   }
-  if (week.length) {
-    while (week.length < 7) week.push(null);
-    matrix.push(week);
-  }
-  return matrix;
-}
+  const idx = Math.abs(h) % EVENT_PALETTE.length;
+  return EVENT_PALETTE[idx];
+};
 
-const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+// utility: oscurecer color para border (resta valor fijo)
+const darken = (hex: string, amt = 30) => {
+  const c = hex.replace("#", "");
+  let r = parseInt(c.substring(0, 2), 16);
+  let g = parseInt(c.substring(2, 4), 16);
+  let b = parseInt(c.substring(4, 6), 16);
+  r = Math.max(0, r - amt);
+  g = Math.max(0, g - amt);
+  b = Math.max(0, b - amt);
+  const toHex = (v: number) => v.toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
+// luminance-based contrast: returns '#000' for light bg, '#fff' for dark bg
+const getContrastColor = (hex: string) => {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  // relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? "#000000" : "#ffffff";
+};
 
 const SimpleCalendar: React.FC = () => {
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [eventsByDate, setEventsByDate] = useState<Record<string, Reserva[]>>({});
-  const [loading, setLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [events, setEvents] = useState([]);
+  const [employeeColors, setEmployeeColors] = useState({});
+  // nuevo estado para la reserva seleccionada
+  const [selectedEvent, setSelectedEvent] = useState<null | {
+    id: any;
+    title: string;
+    start: string;
+    empleadoId?: any;
+    empleadoName?: string;
+    clienteName?: string;
+    servicioName?: string;
+    estado?: string;
+    raw?: any;
+  }>(null);
 
-  const monthMatrix = useMemo(() => getMonthMatrix(year, month), [year, month]);
+  useEffect(() => {
+    fetchReservations();
+  }, []);
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
+  const fetchReservations = async () => {
     try {
-      // traer reservas del mes
-      const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
-      const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
-
+      // 📌 Relaciones corregidas segun FKs reales
       const { data, error } = await supabase
-        .from('reserva')
-        .select(`*, Cliente:usuario!reserva_idcliente_fkey (*), Empleado:usuario!reserva_idempleado_fkey (*), Servicio:servicio!reserva_idservicio_fkey (*)`)
-        .gte('fecha', firstDay)
-        .lte('fecha', lastDay)
-        .order('fecha')
-        .order('hora');
+        .from("reserva")
+        .select(`
+          *,
+          Cliente:usuario!reserva_idusuariocliente_fkey ( nombre ),
+          Empleado:usuario!reserva_idempleado_fkey ( nombre ),
+          Servicio:servicio!reserva_idservicio_fkey ( nombreservicio )
+        `);
 
       if (error) throw error;
 
-      const grouped: Record<string, Reserva[]> = {};
-      (data || []).forEach((r: any) => {
-        const key = r.fecha;
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(r as Reserva);
+      const formatted = (data || []).map((r: any) => {
+        const color = getEventColorForEmployee(r.idempleado);
+        return {
+          id: r.idreserva,
+          title: `${r.Servicio?.nombreservicio ?? ""} - ${r.Cliente?.nombre ?? ""}`,
+          start: `${r.fecha}T${r.hora}`,
+          backgroundColor: color,
+          borderColor: darken(color, 30),
+          textColor: getContrastColor(color),
+          // extendedProps para usar en eventClick
+          extendedProps: {
+            empleadoId: r.idempleado,
+            empleadoName: r.Empleado?.nombre ?? null,
+            clienteName: r.Cliente?.nombre ?? null,
+            servicioName: r.Servicio?.nombreservicio ?? null,
+            estado: r.estado ?? null,
+            raw: r,
+          },
+        };
       });
 
-      setEventsByDate(grouped);
+      setEmployeeColors({});
+      setEvents(formatted);
     } catch (err) {
-      console.error('Error fetching reservations for calendar', err);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
-  }, [year, month]);
-
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
-
-  const prevMonth = () => {
-    if (month === 0) {
-      setYear(y => y - 1);
-      setMonth(11);
-    } else setMonth(m => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 11) {
-      setYear(y => y + 1);
-      setMonth(0);
-    } else setMonth(m => m + 1);
   };
 
-  const onSelectDay = (d: number | null) => {
-    if (!d) return;
-    const dateKey = new Date(year, month, d).toISOString().split('T')[0];
-    setSelectedDate(dateKey);
+  // nuevo handler para click en evento
+  const handleEventClick = (clickInfo: any) => {
+    const ev = clickInfo.event;
+    const props = ev.extendedProps || {};
+    setSelectedEvent({
+      id: ev.id,
+      title: ev.title,
+      start: ev.start ? ev.start.toISOString() : ev.startStr,
+      empleadoId: props.empleadoId,
+      empleadoName: props.empleadoName,
+      clienteName: props.clienteName,
+      servicioName: props.servicioName,
+      estado: props.estado,
+      raw: props.raw,
+    });
   };
 
-  const closeModal = () => setSelectedDate(null);
+  const toolbarColor = COMPANY_PALETTE[0];
+  const toolbarHover = COMPANY_PALETTE[1] || toolbarColor;
 
   return (
-    <div className="p-4 bg-white rounded-lg shadow">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-lg font-semibold">{new Date(year, month).toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</div>
-        <div className="flex gap-2">
-          <button onClick={prevMonth} className="px-2 py-1 bg-gray-100 rounded">Ant</button>
-          <button onClick={nextMonth} className="px-2 py-1 bg-gray-100 rounded">Sig</button>
-        </div>
-      </div>
+    <div className="p-4 bg-white rounded shadow relative">
+      {/* estilos inyectados para sobreescribir el header de FullCalendar */}
+      <style>{`
+        /* toolbar buttons */
+        .fc .fc-toolbar .fc-button {
+          background-color: ${toolbarColor} !important;
+          border-color: ${toolbarColor} !important;
+          color: ${getContrastColor(toolbarColor)} !important;
+        }
+        /* hover / focus */
+        .fc .fc-toolbar .fc-button:hover,
+        .fc .fc-toolbar .fc-button:focus {
+          background-color: ${toolbarHover} !important;
+          border-color: ${toolbarHover} !important;
+          color: ${getContrastColor(toolbarHover)} !important;
+          box-shadow: none !important;
+        }
+        /* active button (today / view buttons) */
+        .fc .fc-toolbar .fc-button.fc-button-active {
+          background-color: ${toolbarHover} !important;
+          border-color: ${toolbarHover} !important;
+          color: ${getContrastColor(toolbarHover)} !important;
+        }
+        /* título del calendario */
+        .fc .fc-toolbar-title {
+          color: ${toolbarColor} !important;
+          font-weight: 600;
+        }
+        /* hoy resaltado (si aplica) */
+        .fc .fc-daygrid-day.fc-day-today {
+          background-color: rgba(163,92,88,0.06) !important;
+        }
 
-      <div className="grid grid-cols-7 text-center text-xs text-gray-600 mb-1">
-        {weekdays.map(w => <div key={w} className="py-1">{w}</div>)}
-      </div>
+        /* Contenedor de eventos en la celda: evitar que se salga */
+        .fc .fc-daygrid-day-frame {
+          padding: 4px !important;
+          overflow: hidden !important; /* evita overflow fuera de la celda */
+        }
 
-      <div className="grid grid-cols-7 gap-1">
-        {monthMatrix.map((week, wi) => (
-          <React.Fragment key={wi}>
-            {week.map((d, di) => {
-              const dateKey = d ? new Date(year, month, d).toISOString().split('T')[0] : null;
-              const events = dateKey ? eventsByDate[dateKey] || [] : [];
-              const isToday = dateKey === new Date().toISOString().split('T')[0];
-              return (
-                <button
-                  key={di}
-                  onClick={() => onSelectDay(d)}
-                  className={`h-24 p-2 text-left border rounded bg-white ${d ? 'hover:bg-gray-50' : 'bg-gray-50 pointer-events-none'} ${isToday ? 'ring-2 ring-primary' : ''}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <span className="text-sm font-medium">{d || ''}</span>
-                    {events.length > 0 && (
-                      <span className="text-xs bg-primary text-white px-1 rounded">{events.length}</span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-xs text-gray-700 space-y-1">
-                    {events.slice(0, 2).map((ev, idx) => (
-                      <div key={idx} className="truncate">{ev.hora} • {ev.Servicio?.nombre || 'Servicio'}</div>
-                    ))}
-                    {events.length > 2 && <div className="text-xs text-gray-500">+{events.length - 2} más</div>}
-                  </div>
-                </button>
-              );
-            })}
-          </React.Fragment>
-        ))}
-      </div>
+        /* limitar la zona que contiene eventos y permitir que los eventos no sobresalgan */
+        .fc .fc-daygrid-day-events {
+          max-height: calc(100% - 28px) !important;
+          overflow: hidden !important;
+        }
 
-      {loading && <div className="mt-3 text-sm text-gray-500">Cargando eventos...</div>}
+        /* Estilos para que los eventos en month view se vean como 'pills' y no salgan */
+        .fc .fc-daygrid-event {
+          display: block !important;
+          width: calc(100% - 6px) !important; /* dejar pequeño padding interno */
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          border-radius: 9999px !important;
+          padding: 0.15rem 0.5rem !important;
+          margin: 2px 0 !important;
+          line-height: 1 !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+          font-size: 0.85rem !important;
+        }
 
-      {selectedDate && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-2xl p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Reservas - {selectedDate}</h3>
-              <button onClick={closeModal} className="px-2 py-1 bg-gray-200 rounded">Cerrar</button>
+        /* Asegurar que el contenido del evento ocupe todo el pill y recorte texto */
+        .fc .fc-daygrid-event .fc-event-main-frame,
+        .fc .fc-daygrid-event a {
+          display: block !important;
+          width: 100% !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          color: inherit !important;
+        }
+
+        /* si hay muchos eventos, FullCalendar mostrará "+N more" en su propio botón; asegurar que no desborde */
+        .fc .fc-daygrid-more-link {
+          display: inline-block;
+          width: 100%;
+          box-sizing: border-box;
+          padding: 2px 4px;
+          font-size: 0.8rem;
+          text-align: left;
+        }
+      `}</style>
+
+      <FullCalendar
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        initialView="dayGridMonth"
+        headerToolbar={{
+          left: "prev,next today",
+          center: "title",
+          right: "dayGridMonth,timeGridWeek,timeGridDay",
+        }}
+        events={events}
+        eventDisplay="block"
+        dayMaxEventRows={4}
+        height="auto"
+        eventClick={handleEventClick} /* añadido */
+      />
+
+      {/* Panel de detalle simple */}
+      {selectedEvent && (
+        <div className="absolute top-6 right-6 z-50 w-80 bg-white border rounded shadow-lg p-4">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <h3 className="font-semibold text-sm">{selectedEvent.servicioName ?? selectedEvent.title}</h3>
+              <p className="text-xs text-gray-500">{new Date(selectedEvent.start).toLocaleString()}</p>
             </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {(eventsByDate[selectedDate] || []).map((r, i) => (
-                <div key={i} className="p-3 border rounded">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-medium">{r.Servicio?.nombre || 'Servicio'}</div>
-                      <div className="text-sm text-gray-600">{r.hora} — {r.Empleado?.nombre || 'Sin asignar'}</div>
-                    </div>
-                    <div className="text-sm text-gray-500">{r.estado}</div>
-                  </div>
-                  <div className="mt-2 text-sm text-gray-700">Cliente: {r.Usuario?.nombre || r.Usuario?.nombre || 'N/A'}</div>
-                </div>
-              ))}
-              {(!eventsByDate[selectedDate] || eventsByDate[selectedDate].length === 0) && (
-                <div className="text-gray-500">No hay reservas para este día.</div>
-              )}
-            </div>
+            <button
+              className="text-gray-400 hover:text-gray-600"
+              onClick={() => setSelectedEvent(null)}
+              aria-label="Cerrar detalle"
+            >
+              ✕
+            </button>
           </div>
+
+          <div className="text-sm space-y-1">
+            <p><strong>Empleado:</strong> {selectedEvent.empleadoName ?? selectedEvent.empleadoId ?? "Sin asignar"}</p>
+            <p><strong>Cliente:</strong> {selectedEvent.clienteName ?? "Desconocido"}</p>
+            <p><strong>Estado:</strong> {selectedEvent.estado ?? "—"}</p>
+          </div>
+
+          {/* opcional: mostrar payload raw para debugging */}
+          {/* <pre className="text-xs mt-2 max-h-32 overflow-auto">{JSON.stringify(selectedEvent.raw, null, 2)}</pre> */}
         </div>
       )}
     </div>
