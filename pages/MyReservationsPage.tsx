@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../services/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useState } from "react";
+import { supabase } from "../services/supabase";
+import { useAuth } from "../contexts/AuthContext";
+import ClientCalendar from "../pages/ClientCalendar";
 
-const MyReservationsPage: React.FC = () => {
+function MyReservationsPage() {
   const { user } = useAuth();
   const [reservas, setReservas] = useState<any[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -18,42 +19,50 @@ const MyReservationsPage: React.FC = () => {
 
       setLoading(true);
       setError(null);
+
       try {
         const userId = String(user.id);
 
-        // Intentar consultas tolerantes: primero columna más esperada, sino alternativa
-        const tryQueries = async (clientField: string) => {
+        // Intento genérico sobre campos posibles
+        const tryQuery = async (field: string) => {
           try {
             const { data, error } = await supabase
-              .from('reserva')
-              .select('*')
-              .eq(clientField, userId)
-              .order('fecha', { ascending: false });
+              .from("reserva")
+              .select("*")
+              .eq(field, userId)
+              .order("fecha", { ascending: false })
+              .order("hora", { ascending: false });
+
             if (error) throw error;
             return data ?? [];
-          } catch (e) {
-            console.debug('[MyReservations] fallo consulta con campo', clientField, e);
+          } catch {
             return null;
           }
         };
 
-        // Probar nombres posibles de la columna cliente
-        const tryFields = ['idusuariocliente', 'idcliente', 'id_cliente', 'cliente_id'];
+        const possibleFields = [
+          "idusuariocliente",
+          "idcliente",
+          "id_cliente",
+          "cliente_id"
+        ];
+
         let result: any[] | null = null;
-        for (const f of tryFields) {
-          result = await tryQueries(f);
+
+        for (const field of possibleFields) {
+          result = await tryQuery(field);
           if (result !== null) {
-            // éxito
             setReservas(result);
             break;
           }
         }
+
         if (result === null) {
-          throw new Error('No se pudo consultar reservas: columnas cliente no coinciden');
+          throw new Error("No se encontró columna válida para el cliente.");
         }
-      } catch (err: any) {
-        console.error('Error cargando reservas:', err);
-        setError('No se pudieron cargar tus reservas. Intenta de nuevo.');
+      } catch (err) {
+        console.error("Error cargando reservas:", err);
+        setError("No se pudieron cargar tus reservas. Intenta de nuevo.");
       } finally {
         setLoading(false);
       }
@@ -62,36 +71,54 @@ const MyReservationsPage: React.FC = () => {
     fetchReservas();
   }, [user]);
 
-  if (loading) return <div className="p-6">Cargando tus reservas...</div>;
+  if (loading) {
+    return <div className="p-6">Cargando tus reservas...</div>;
+  }
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4" style={{ color: '#9F6A6A' }}>Mis Reservas</h2>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
+    <div className="p-6 space-y-6">
+      <h2 className="text-2xl font-bold" style={{ color: "#9F6A6A" }}>
+        Mis Reservas
+      </h2>
+
+      {error && <p className="text-red-500">{error}</p>}
 
       {!user && (
         <p className="text-gray-700">Debes iniciar sesión para ver tus reservas.</p>
       )}
 
+      {/* CALENDARIO DEL CLIENTE */}
+      {user && <ClientCalendar />}
+
+      {/* LISTADO DE RESERVAS */}
       {user && reservas && reservas.length === 0 && (
         <p className="text-gray-700">No tienes reservas registradas.</p>
       )}
 
       {user && reservas && reservas.length > 0 && (
-        <div className="space-y-3">
-          {reservas.map(r => (
-            <div key={r.idreserva} className="border rounded p-3 bg-white shadow-sm">
-              <p><strong>Fecha:</strong> {r.fecha}</p>
-              <p><strong>Hora:</strong> {r.hora}</p>
-              <p><strong>Estado:</strong> {r.estado}</p>
-              <p className="text-sm text-gray-500">Empleado: {String(r.idempleado)}</p>
-              <p className="text-sm text-gray-500">Servicio: {String(r.idservicio)}</p>
-            </div>
-          ))}
-        </div>
+        <>
+          <h3 className="text-xl font-semibold" style={{ color: "#9F6A6A" }}>
+            Historial de Reservas
+          </h3>
+
+          <div className="space-y-3">
+            {reservas.map((r) => (
+              <div
+                key={r.idreserva}
+                className="border rounded p-3 bg-white shadow-sm"
+              >
+                <p><strong>Fecha:</strong> {r.fecha}</p>
+                <p><strong>Hora:</strong> {r.hora}</p>
+                <p><strong>Estado:</strong> {r.estado}</p>
+                <p className="text-sm text-gray-500">Empleado: {String(r.idempleado)}</p>
+                <p className="text-sm text-gray-500">Servicio: {String(r.idservicio)}</p>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
-};
+}
 
 export default MyReservationsPage;

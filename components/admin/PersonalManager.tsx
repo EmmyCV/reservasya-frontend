@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabase';
 import StylistsManager from './StylistsManager';
 import Spinner from '../Spinner';
+import DeleteEmployeePanel from './DeleteEmployeePanel';
 
 interface Employee {
   id: string;
@@ -46,6 +47,9 @@ const PersonnelManager: React.FC = () => {
   const [horarios, setHorarios] = useState<{ idhorario: number | string; nombre: string; horainicio: string; horafin: string }[]>([]);
   const [selectedHorario, setSelectedHorario] = useState<number | string | null>(null);
   const [isHorarioModalOpen, setIsHorarioModalOpen] = useState(false);
+
+  // Delete panel
+  const [isDeletePanelOpen, setIsDeletePanelOpen] = useState(false);
 
   // -------------------------------- //
 
@@ -281,7 +285,6 @@ const PersonnelManager: React.FC = () => {
       };
 
       if (selectedHorarioObj) {
-        // si quieres almacenar tipo_turno en la tabla empleado_horario
         insertRow.tipo_turno = selectedHorarioObj.nombre;
       }
 
@@ -309,13 +312,24 @@ const PersonnelManager: React.FC = () => {
       <div className="p-4 bg-white rounded-lg shadow">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Gestionar Empleados</h2>
-          <button
-            onClick={handleOpenModal}
-            className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-focus"
-            style={{ backgroundColor: '#9F6A6A' }}
-          >
-            Añadir Empleado
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+            <button
+              onClick={handleOpenModal}
+              className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-focus"
+              style={{ backgroundColor: '#9F6A6A' }}
+            >
+              Añadir Empleado
+            </button>
+
+            {/* Botón para abrir panel de eliminar (debajo o al lado según tamaño) */}
+            <button
+              onClick={() => setIsDeletePanelOpen(true)}
+              className="mt-0 sm:mt-0 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+              style={{ minWidth: 140 }}
+            >
+              Eliminar Empleado
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -338,7 +352,7 @@ const PersonnelManager: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="py-3 px-4 text-left">Nombre</th>
-                  <th className="py-3 px-4 text-left">Teléfono</th>
+                 
                   <th className="py-3 px-4 text-left">Acciones</th>
                 </tr>
               </thead>
@@ -346,33 +360,29 @@ const PersonnelManager: React.FC = () => {
                 {employees.map(employee => (
                   <tr key={employee.id} className="border-b">
                     <td className="py-3 px-4">{employee.nombre}</td>
-                    <td className="py-3 px-4">{employee.telefono}</td>
-                    <td className="py-3 px-4 flex gap-3">
+                    
 
-                      {/* BOTÓN SERVICIOS */}
-                      <button
-                        onClick={() => handleOpenServicios(employee.id)}
-                        className="text-blue-600 hover:underline text-sm"
-                      >
-                        Servicios
-                      </button>
+                    {/* CELDA ACCIONES - Opción A (estilizada) */}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
 
-                      {/* BOTÓN HORARIO */}
-                      <button
-                        onClick={() => handleOpenHorario(employee.id)}
-                        className="text-purple-600 hover:underline text-sm"
-                      >
-                        Horario
-                      </button>
+                        <button
+                          onClick={() => handleOpenServicios(employee.id)}
+                          className="bg-blue-100 text-blue-700 px-3 py-1 rounded-md hover:bg-blue-200 transition text-sm font-medium"
+                        >
+                          Servicios
+                        </button>
 
-                      {/* ELIMINAR */}
-                      <button
-                        onClick={() => handleDelete(employee.id)}
-                        className="text-red-600 hover:underline text-sm"
-                      >
-                        Eliminar
-                      </button>
+                        <button
+                          onClick={() => handleOpenHorario(employee.id)}
+                          className="bg-purple-100 text-purple-700 px-3 py-1 rounded-md hover:bg-purple-200 transition text-sm font-medium"
+                        >
+                          Horario
+                        </button>
 
+                      
+
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -421,11 +431,11 @@ const PersonnelManager: React.FC = () => {
                 <label key={serv.id} className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={selectedServices.map(String).includes(String(serv.id))}
+                    checked={selectedServices.includes(serv.id)}
                     onChange={() =>
                       setSelectedServices(prev =>
-                        prev.map(String).includes(String(serv.id))
-                          ? prev.filter(s => String(s) !== String(serv.id))
+                        prev.includes(serv.id)
+                          ? prev.filter(s => s !== serv.id)
                           : [...prev, serv.id]
                       )
                     }
@@ -478,12 +488,17 @@ const PersonnelManager: React.FC = () => {
         </div>
       )}
 
-      {/* RRHH EXTRA */}
-      <div className="mt-6">
-        <h2 className="text-xl font-bold mb-4">Personal y Recursos Humanos</h2>
-        <p className="text-gray-600 mb-4">Gestión de perfiles de empleados, roles y permisos.</p>
-        <StylistsManager />
-      </div>
+      {/* Delete Employee Panel (overlay) */}
+      {isDeletePanelOpen && (
+        <DeleteEmployeePanel
+          onClose={() => {
+            setIsDeletePanelOpen(false);
+            fetchEmployees();
+          }}
+        />
+      )}
+
+     
 
     </div>
   );

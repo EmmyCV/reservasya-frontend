@@ -94,7 +94,7 @@ const ClientDashboard: React.FC = () => {
   return (
     <div>
       <FlashBanner />
-      <h1 className="text-3xl font-bold mb-6 text-text-primary"> Nuestros servicios</h1>
+      <h1 className="text-3xl font-bold mb-6 text-text-primary"> Catalogo de servicios</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {services.map((service) => (
           <div key={service.idServicio} className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300">

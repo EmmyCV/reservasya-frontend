@@ -4,12 +4,24 @@ import { supabase } from "../services/supabase";
 interface Props {
   idEmpleado: string;
   fecha: string;
-  idServicio: number;
+  idservicio: number;
   duracionServicio: number;
   selectedHora?: string;
   onSelectHora: (hora: string) => void;
   showDebug?: boolean;
 }
+
+const SELECTED_GREEN = "#73A954";
+const UNSELECTED_LIGHT = "#A8D58C";
+
+const getContrastColor = (hex: string) => {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? "#000000" : "#ffffff";
+};
 
 const HourPicker: React.FC<Props> = ({
   idEmpleado,
@@ -17,7 +29,7 @@ const HourPicker: React.FC<Props> = ({
   duracionServicio,
   selectedHora,
   onSelectHora,
-  showDebug
+  showDebug,
 }) => {
   const [horasDisponibles, setHorasDisponibles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +39,7 @@ const HourPicker: React.FC<Props> = ({
 
   useEffect(() => {
     if (fecha && idEmpleado) cargarHoras();
-  }, [fecha, idEmpleado]); // ✅ QUITAMOS duracionServicio
+  }, [fecha, idEmpleado]);
 
   const cargarHoras = async () => {
     setLoading(true);
@@ -41,15 +53,14 @@ const HourPicker: React.FC<Props> = ({
       return;
     }
 
-    // 1) obtener horario del empleado
+    // Obtener horario del empleado
     let turnoData: any[] = [];
-    const { data } = await supabase
+    const { data: horarioEmpleado } = await supabase
       .from("empleado_horario")
       .select(`idhorario, horario(horainicio, horafin)`)
       .eq("idusuarioempleado", idEmpleado);
 
-    if (data) turnoData = data;
-
+    if (horarioEmpleado) turnoData = horarioEmpleado;
     setDebugTurno(turnoData);
 
     if (!turnoData.length) {
@@ -59,54 +70,69 @@ const HourPicker: React.FC<Props> = ({
       return;
     }
 
-    const horario = Array.isArray(turnoData[0].horario)
-      ? turnoData[0].horario[0]
-      : turnoData[0].horario;
+    // Último horario asignado
+    const ultimo = turnoData[turnoData.length - 1];
+    const h = Array.isArray(ultimo.horario) ? ultimo.horario[0] : ultimo.horario;
 
-    const horaInicio = horario?.horainicio;
-    const horaFin = horario?.horafin;
-
-    if (!horaInicio || !horaFin) {
+    if (!h) {
       setMensaje("Horario inválido.");
+      
       setHorasDisponibles([]);
       setLoading(false);
       return;
     }
 
-    // 2) obtener reservas
+    const horaInicio = h.horainicio; // "09:00:00"
+    const horaFin = h.horafin;       // "17:00:00"
+
+    // Normalizar horarios a HH:MM
+    const hi = horaInicio.substring(0, 5);
+    const hf = horaFin.substring(0, 5);
+
+    // Obtener reservas válidas (no canceladas)
     const { data: reservas } = await supabase
       .from("reserva")
-      .select("hora, idservicio")
+      .select("hora, idservicio, estado")
       .eq("idempleado", idEmpleado)
-      .eq("fecha", fecha);
+      .eq("fecha", fecha)
+      .neq("estado", "cancelada");
 
     setDebugReservas(reservas ?? []);
 
+    // BLOQUEAR HORAS OCUPADAS
     const horasBloqueadas: string[] = [];
 
     for (const r of reservas ?? []) {
-      const start = parseInt(r.hora.substring(0, 2));
+      const horaReserva = r.hora.substring(0, 5); // HH:MM
+      const [rh, rm] = horaReserva.split(":").map(Number);
+      const inicioReserva = rh * 60 + rm;
 
       const { data: servData } = await supabase
         .from("servicio")
         .select("duracion")
-        .eq("idServicio", r.idservicio)
+        .eq("idservicio", r.idservicio)
         .single();
 
-      const duracionReserva = Math.ceil((servData?.duracion ?? 60) / 60);
+      const duracionMin = servData?.duracion ?? 60;
+      const finReserva = inicioReserva + duracionMin;
 
-      for (let i = 0; i < duracionReserva; i++) {
-        horasBloqueadas.push(`${String(start + i).padStart(2, "0")}:00`);
+      // Cada reserva bloquea su intervalo
+      const horaInicioBloque = Math.floor(inicioReserva / 60);
+      const horaFinBloque = Math.ceil(finReserva / 60);
+
+      for (let h = horaInicioBloque; h < horaFinBloque; h++) {
+        horasBloqueadas.push(`${String(h).padStart(2, "0")}:00`);
       }
     }
 
-    // 3) generar bloques válidos
-    const posibles = generarBloques(horaInicio, horaFin, duracionServicio);
+    // Generar bloques disponibles
+    const posibles = generarBloques(hi, hf, duracionServicio);
 
-    // 4) filtrar ocupados
-    const libres = posibles.filter(h => !horasBloqueadas.includes(h));
+    const libres = posibles.filter((h) => !horasBloqueadas.includes(h));
 
-    if (!libres.length) setMensaje("No hay horarios disponibles.");
+    if (!libres.length) {
+      setMensaje("No hay horarios disponibles.");
+    }
 
     setHorasDisponibles(libres);
     setLoading(false);
@@ -128,17 +154,25 @@ const HourPicker: React.FC<Props> = ({
 
   return (
     <div className="grid grid-cols-3 gap-2 mt-3">
-      {horasDisponibles.map(hora => (
-        <button
-          key={hora}
-          onClick={() => onSelectHora(hora)}
-          className={`px-3 py-2 rounded-lg text-white transition
-            ${selectedHora === hora ? "bg-pink-500" : "bg-pink-300 hover:bg-pink-400"}
-          `}
-        >
-          {hora}
-        </button>
-      ))}
+      {horasDisponibles.map((hora) => {
+        const isSelected = selectedHora === hora;
+        const bg = isSelected ? SELECTED_GREEN : UNSELECTED_LIGHT;
+        const color = getContrastColor(bg);
+
+        return (
+          <button
+            key={hora}
+            onClick={() => onSelectHora(hora)}
+            style={{
+              backgroundColor: bg,
+              color,
+            }}
+            className="px-3 py-2 rounded-lg transition focus:outline-none"
+          >
+            {hora}
+          </button>
+        );
+      })}
 
       {showDebug && (
         <div className="col-span-3 mt-2 p-2 bg-gray-50 border rounded text-xs">

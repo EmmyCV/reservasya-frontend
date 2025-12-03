@@ -24,9 +24,9 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
   const [success, setSuccess] = useState(false);
   const { user } = useAuth();
 
-  // =============================
-  // TRAER EMPLEADOS DEL SERVICIO
-  // =============================
+  // =====================================================
+  // CARGAR EMPLEADOS QUE PUEDEN REALIZAR ESTE SERVICIO
+  // =====================================================
   useEffect(() => {
     const fetchEmployees = async () => {
       if (!service?.idServicio) return;
@@ -37,27 +37,25 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
       try {
         const { data, error } = await supabase
           .from('empleado_servicio')
-          .select('idusuarioempleado, idempleadoservicio, usuario(id, nombre)')
+          .select('idusuarioempleado, usuario(id, nombre)')
           .eq('idservicio', service.idServicio);
 
         if (error) throw error;
 
-        const lista: Empleado[] = [];
+        const list: Empleado[] = [];
         const seen = new Set<string>();
 
-        (data || []).forEach((item: any) => {
+        data?.forEach(item => {
           const usuario = Array.isArray(item.usuario) ? item.usuario[0] : item.usuario;
-          const id = usuario?.id ?? item.idusuarioempleado;
-          const nombre = usuario?.nombre ?? item.nombre;
 
-          if (id && nombre && !seen.has(id)) {
-            lista.push({ id, nombre });
-            seen.add(id);
+          if (usuario?.id && usuario?.nombre && !seen.has(usuario.id)) {
+            seen.add(usuario.id);
+            list.push({ id: usuario.id, nombre: usuario.nombre });
           }
         });
 
         setRawEmployees(data || null);
-        setEmployees(lista);
+        setEmployees(list);
       } catch {
         setError('Error al obtener empleados para este servicio.');
       } finally {
@@ -68,9 +66,9 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     fetchEmployees();
   }, [service?.idServicio]);
 
-  // =============================
-  // GUARDAR RESERVA
-  // =============================
+  // =====================================================
+  //     GUARDAR RESERVA
+  // =====================================================
   const handleBooking = async () => {
     if (!user || !selectedEmployee || !selectedSlot || !selectedDate) {
       setError('Todos los campos son obligatorios.');
@@ -83,60 +81,85 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
     try {
       const horaInicio = `${selectedSlot}:00`;
       const duracion = Math.ceil((service.duracion ?? 60) / 60);
+      const horaNum = parseInt(selectedSlot);
 
-      const empleadoServicio = rawEmployees?.find(
-        e => e.idusuarioempleado === selectedEmployee.id
-      );
-
-      if (!empleadoServicio) {
-        throw new Error("No se encontró la relación empleado-servicio.");
-      }
-
-      const { data: reservas } = await supabase
+      // =====================================================
+      // VERIFICAR HORAS OCUPADAS (solo estado != cancelada)
+      // =====================================================
+      const { data: reservas, error: errorReservas } = await supabase
         .from('reserva')
         .select('hora')
         .eq('idempleado', selectedEmployee.id)
-        .eq('fecha', selectedDate);
+        .eq('fecha', selectedDate)
+        .neq('estado', 'cancelada'); // IMPORTANTE
 
-      const horaNum = parseInt(selectedSlot);
-      const horasOcupadas = reservas?.map(r => parseInt(r.hora.split(':')[0])) ?? [];
+      if (errorReservas) throw errorReservas;
+
+      const horasOcupadas = (reservas ?? []).map(r =>
+        parseInt(r.hora.split(':')[0])
+      );
 
       for (let i = 0; i < duracion; i++) {
         if (horasOcupadas.includes(horaNum + i)) {
-          setError('⛔ Ese horario ya está reservado.');
+          setError('Ese horario ya está reservado.');
           setLoading(false);
           return;
         }
       }
 
-      const { error } = await supabase.from('reserva').insert({
+      // =====================================================
+      // INSERTAR RESERVA
+      // =====================================================
+      const { error: insertError } = await supabase.from('reserva').insert({
         idusuariocliente: user.id,
         idempleado: selectedEmployee.id,
         idservicio: service.idServicio,
         fecha: selectedDate,
         hora: horaInicio,
-
-        // ❗ YA NO EXISTE cancelada
-        estado: 'pendiente',
-
-        disponible: false // <- si esto tampoco existe, dímelo y lo quitamos
+        estado: 'pendiente'
       });
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       setSuccess(true);
 
     } catch (err) {
-      console.error("📌 Error guardando reserva:", err);
-      setError('❌ No se pudo confirmar la reserva.');
+      console.error("Error guardando reserva:", err);
+      setError('No se pudo confirmar la reserva.');
     } finally {
       setLoading(false);
     }
   };
 
-  // =============================
-  // UI
-  // =============================
+  // =====================================================
+  //     COLORES DE ESTILO
+  // =====================================================
+  const SUCCESS_GREEN = "#73A954";
+
+  const darken = (hex: string, amt = 18) => {
+    const c = hex.replace("#", "");
+    let r = parseInt(c.substring(0, 2), 16);
+    let g = parseInt(c.substring(2, 4), 16);
+    let b = parseInt(c.substring(4, 6), 16);
+    r = Math.max(0, r - amt);
+    g = Math.max(0, g - amt);
+    b = Math.max(0, b - amt);
+    const toHex = (v: number) => v.toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  };
+
+  const getContrastColor = (hex: string) => {
+    const c = hex.replace("#", "");
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.6 ? "#000000" : "#ffffff";
+  };
+
+  // =====================================================
+  //     UI
+  // =====================================================
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 m-4 max-h-[90vh] overflow-y-auto">
@@ -201,13 +224,14 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
                 <HourPicker
                   idEmpleado={String(selectedEmployee.id)}
                   fecha={selectedDate}
-                  idServicio={service.idServicio}
+                  idservicio={service.idServicio}
                   duracionServicio={Math.ceil((service.duracion ?? 60) / 60)}
                   selectedHora={selectedSlot ?? undefined}
                   onSelectHora={(hora) => {
                     setSelectedSlot(hora);
                     setStep(4);
                   }}
+                  
                 />
               </div>
             )}
@@ -226,7 +250,12 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
                   <button
                     onClick={handleBooking}
                     disabled={loading}
-                    className="w-full mt-4 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                    style={{
+                      backgroundColor: SUCCESS_GREEN,
+                      borderColor: darken(SUCCESS_GREEN, 20),
+                      color: getContrastColor(SUCCESS_GREEN),
+                    }}
+                    className="w-full mt-4 py-2 rounded-md disabled:opacity-50"
                   >
                     {loading ? <Spinner /> : 'Confirmar reserva'}
                   </button>
@@ -238,7 +267,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
           </>
         ) : (
           <div className="text-center p-4">
-            <h3 className="text-2xl font-bold text-green-600 mb-4">¡Reserva confirmada!</h3>
+            <h3 className="text-2xl font-bold mb-4" style={{ color: SUCCESS_GREEN }}>¡Reserva confirmada!</h3>
             <p>
               Tu cita para <strong>{service.nombre}</strong> con
               <strong> {selectedEmployee?.nombre}</strong> el <strong>{selectedDate}</strong> a las
@@ -246,7 +275,12 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
             </p>
             <button
               onClick={onClose}
-              className="mt-6 bg-primary text-white py-2 px-6 rounded-md hover:bg-primary-focus"
+              style={{
+                backgroundColor: SUCCESS_GREEN,
+                color: getContrastColor(SUCCESS_GREEN),
+                borderColor: darken(SUCCESS_GREEN, 20)
+              }}
+              className="mt-6 py-2 px-6 rounded-md"
             >
               Cerrar
             </button>
@@ -259,3 +293,4 @@ const BookingModal: React.FC<BookingModalProps> = ({ service, onClose }) => {
 };
 
 export default BookingModal;
+
