@@ -88,7 +88,7 @@ const AllReservations: React.FC = () => {
                                       onChange={(e) => handleStatusChange(res.idReserva, e.target.value as any)}
                                       className="p-1 border rounded text-xs"
                                     >
-                                        <option value="activa">Activa</option>
+                                        <option value="pendiente">Pendiente</option>
                                         <option value="realizada">Realizada</option>
                                         <option value="cancelada">Cancelada</option>
                                     </select>
