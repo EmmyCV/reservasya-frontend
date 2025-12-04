@@ -21,7 +21,7 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
   const [loadingReservations, setLoadingReservations] = useState(false);
   const [reservationsError, setReservationsError] = useState<string>("");
 
-  // Traer todos los empleados
+  // Traer todos los empleados activos
   const fetchEmployees = useCallback(async () => {
     setLoadingEmployees(true);
     try {
@@ -29,6 +29,7 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
         .from("usuario")
         .select("id, nombre, telefono")
         .eq("rol", "Empleado")
+        .eq("activo", true) // solo activos
         .order("nombre");
 
       if (error) throw error;
@@ -58,11 +59,9 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
       setLoadingReservations(true);
       setReservationsError("");
       try {
-        // Buscar empleado seleccionado
         const empleado = employees.find((e) => e.id === selected);
         setEmployeeData(empleado || null);
 
-        // Consultar reservas pendientes con join a Cliente y Servicio
         const { data: reservas, error } = await supabase
           .from("reserva")
           .select(`
@@ -76,7 +75,6 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
         if (error) throw error;
 
         setPendingReservations(reservas || []);
-        console.log("Reservas pendientes:", reservas);
       } catch (err: any) {
         console.error("Error cargando reservas:", err.message);
         setPendingReservations([]);
@@ -112,8 +110,8 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
     }
   };
 
-  // Eliminar empleado solo si no tiene reservas pendientes
-  const handleDelete = async () => {
+  // Desactivar empleado solo si no tiene reservas pendientes
+  const handleDeactivate = async () => {
     if (pendingReservations.length > 0) {
       alert("El empleado tiene reservas pendientes. Debe reasignarlas primero.");
       return;
@@ -123,17 +121,17 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
     try {
       const { error } = await supabase
         .from("usuario")
-        .delete()
+        .update({ activo: false })
         .eq("id", selected);
 
       if (error) throw error;
 
-      alert("Empleado eliminado correctamente.");
+      alert("Empleado desactivado correctamente.");
       fetchEmployees();
       onClose();
     } catch (err: any) {
-      console.error("Error eliminando empleado:", err.message);
-      alert("Error eliminando empleado.");
+      console.error("Error desactivando empleado:", err.message);
+      alert("Error desactivando empleado.");
     } finally {
       setLoadingEmployees(false);
     }
@@ -142,7 +140,7 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center p-4">
       <div className="bg-white w-full max-w-lg p-6 rounded-xl shadow-lg">
-        <h2 className="text-xl font-semibold mb-4">Eliminar Empleado</h2>
+        <h2 className="text-xl font-semibold mb-4">Desactivar Empleado</h2>
 
         <label className="font-semibold">Seleccione un empleado:</label>
         <select
@@ -205,7 +203,7 @@ const DeleteEmployeePanel: React.FC<DeleteEmployeePanelProps> = ({ onClose }) =>
         )}
 
         <button
-          onClick={handleDelete}
+          onClick={handleDeactivate}
           disabled={pendingReservations.length > 0}
           className="mt-6 w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 disabled:bg-gray-400"
         >

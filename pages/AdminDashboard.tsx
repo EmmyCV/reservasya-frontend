@@ -3,7 +3,6 @@ import ServiceManager from '../components/admin/ServiceManager';
 import AllReservations from '../components/admin/AllReservations';
 import ClientsManager from '../components/admin/ClientsManager';
 import StylistsManager from '../components/admin/StylistsManager';
-import SystemSettings from '../components/admin/SystemSettings';
 import AgendaManager from '../components/admin/AgendaManager';
 import PersonnelManager from '../components/admin/PersonalManager';
 import ReportsManager from '../components/admin/ReportsManager';
@@ -25,8 +24,7 @@ const AdminDashboard: React.FC = () => {
         return <PersonnelManager />;
       case 'reports':
         return <ReportsManager />;
-      case 'settings':
-        return <SystemSettings />;
+      
       default:
         return null;
     }
@@ -51,7 +49,6 @@ const AdminDashboard: React.FC = () => {
           <TabButton tab="services" label="Catálogo de Servicios" />
           <TabButton tab="personal" label="Personal y RRHH" />
           <TabButton tab="reports" label="Reportes y Análisis" />
-          <TabButton tab="settings" label="Configuración del Sistema" />
         </div>
       </div>
       <div>

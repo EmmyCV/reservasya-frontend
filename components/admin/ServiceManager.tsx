@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabase';
 import { Servicio } from '../../types';
-import Spinner from '../Spinner';
+import Spinner from './Spinner';
 
 const ServiceManager: React.FC = () => {
     const formatHoursToInterval = (hours: number) => {
