@@ -1,4 +1,4 @@
-/* ======== Fondo general ======== */
+/* index.css o App.css */
 .fc-theme-standard td, 
 .fc-theme-standard th {
   background: #FCF8F5;
@@ -46,3 +46,13 @@
 .fc-daygrid-day-number {
   color: #8C847E !important;
 }
+.react-datepicker__day--available {
+  background-color: #73A954;
+  color: white;
+  border-radius: 50%;
+}
+
+.react-datepicker__day--disabled {
+  color: #ccc;
+}
+

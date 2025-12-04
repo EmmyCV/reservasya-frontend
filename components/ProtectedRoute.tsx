@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 // CORRECCIÓN: Se añade explícitamente la extensión .tsx
 import { useAuth } from '../contexts/AuthContext.tsx';
 // CORRECCIÓN: Se añade explícitamente la extensión .tsx
-import Spinner from './Spinner.tsx'; // Asumo que el Spinner está en el mismo nivel
+import Spinner from './admin/Spinner.tsx'; // Asumo que el Spinner está en el mismo nivel
 
 
 interface ProtectedRouteProps {

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Servicio } from '../types';
-import Spinner from '../components/Spinner';
+import Spinner from '../components/admin/Spinner';
 import BookingModal from '../components/BookingModal';
 
 const ClientDashboard: React.FC = () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
-import Spinner from '../Spinner';
+import Spinner from './Spinner';
 
 const ClientsManager: React.FC = () => {
   const [clients, setClients] = useState<any[]>([]);

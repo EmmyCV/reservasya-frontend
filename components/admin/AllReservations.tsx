@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabase';
 import { Reserva } from '../../types';
-import Spinner from '../Spinner';
+import Spinner from './Spinner';
 
 const AllReservations: React.FC = () => {
     const [reservations, setReservations] = useState<Reserva[]>([]);

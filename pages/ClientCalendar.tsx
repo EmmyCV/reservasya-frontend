@@ -88,7 +88,7 @@ const ClientCalendar: React.FC = () => {
     }
 
     const formatted = (data || [])
-      .filter((r: any) => r.estado !== "cancelado")
+      .filter((r: any) => r.estado !== "cancelada")
       .map((r: any) => {
         const color = getEventColorForEmployee(r.idempleado);
         return {
